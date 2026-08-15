@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { authenticate } from './middleware/authenticate.js';
 
 import { validateBody } from './middleware/validateRequest.js';
+import { requestsRouter } from './modules/requests/requests.router.js';
 
 
 
@@ -42,6 +43,8 @@ app.post('/test-validate', validateBody(testSchema), (req, res) => {
   res.status(200).json({ received: req.body });
 });
 
+
+app.use('/api/v1/requests', requestsRouter);
 // ------------------------------
 // Routes will be mounted here as modules are built, e.g:
 // import { requestsRouter } from './modules/requests/requests.routes.js';
