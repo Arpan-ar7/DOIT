@@ -1,7 +1,7 @@
 // src/utils/logger.ts
 
 import pino from 'pino';
-import { env } from '../config/env';
+import { env } from '../config/env.js';
 
 /**
  * Central logger instance — import this everywhere instead of using console.log.

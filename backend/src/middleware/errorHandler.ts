@@ -1,3 +1,5 @@
+// src/middleware/errorHandler.ts
+
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 import { env } from '../config/env.js';
@@ -27,8 +29,20 @@ export function errorHandler(
   next: NextFunction
 ): void {
   const isAppError = err instanceof AppError;
-  const statusCode = isAppError ? err.statusCode : 500;
-  const message = isAppError ? err.message : 'Internal server error';
+
+  // express.json() (body-parser) throws a raw SyntaxError with a `status`/`statusCode`
+  // of 400 and `type: 'entity.parse.failed'` when the request body isn't valid JSON.
+  // Without this check, that error falls through as a generic 500 instead of the
+  // 400 it actually is.
+  const isBodyParseError =
+    err instanceof SyntaxError && 'type' in err && (err as any).type === 'entity.parse.failed';
+
+  const statusCode = isAppError ? err.statusCode : isBodyParseError ? 400 : 500;
+  const message = isAppError
+    ? err.message
+    : isBodyParseError
+      ? 'Malformed JSON in request body'
+      : 'Internal server error';
 
   logger.error(
     {
@@ -37,7 +51,7 @@ export function errorHandler(
       path: req.originalUrl,
       method: req.method,
     },
-    isAppError ? err.message : 'Unhandled error'
+    isAppError ? err.message : isBodyParseError ? 'Malformed JSON body' : 'Unhandled error'
   );
 
   res.status(statusCode).json({

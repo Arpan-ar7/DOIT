@@ -8,25 +8,38 @@ import compression from 'compression';
 import { pinoHttp } from 'pino-http';
 import { logger } from './utils/logger.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
+import { z } from 'zod';
+
+import { authenticate } from './middleware/authenticate.js';
+
+import { validateBody } from './middleware/validateRequest.js';
+
+
+
+
+
 
 export const app = express();
 
-// ------------------------------
-// Core middleware
-// ------------------------------
+
 app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(express.json());
 app.use(pinoHttp({ logger }));
 
-// ------------------------------
-// Health check
-// Every hosting platform (Render/Railway/Fly) pings this
-// to confirm the service is alive after deploy.
-// ------------------------------
+const testSchema = z.object({ name: z.string().min(1) });
+
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok' });
+});
+
+app.get('/test-auth', authenticate, (req, res) => {
+  res.status(200).json({ user: req.user });
+});
+
+app.post('/test-validate', validateBody(testSchema), (req, res) => {
+  res.status(200).json({ received: req.body });
 });
 
 // ------------------------------
