@@ -1,13 +1,14 @@
+// src/middleware/authenticate.ts
+
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import jwksClient from 'jwks-rsa';
 import { AppError } from './errorHandler.js';
 import { env } from '../config/env.js';
 
 /**
  * Shape of the payload inside a Supabase-issued JWT.
  * `sub` is the user's UUID (matches auth.users.id / profiles.id).
- * There are more fields on the real token (email, role, etc.) —
- * add them here as you need them.
  */
 interface SupabaseJwtPayload {
   sub: string;
@@ -15,8 +16,6 @@ interface SupabaseJwtPayload {
   role?: string;
 }
 
-// Extend Express's Request type so `req.user` is recognized everywhere,
-// instead of every controller needing to cast or redeclare it.
 declare global {
   namespace Express {
     interface Request {
@@ -29,12 +28,36 @@ declare global {
 }
 
 /**
+ * Supabase (newer projects) signs JWTs asymmetrically (ES256), not with a
+ * shared secret. To verify, we fetch the correct PUBLIC key from Supabase's
+ * JWKS endpoint, matched by the `kid` in the token header. jwks-rsa caches
+ * keys internally so this isn't a network call on every single request.
+ */
+const client = jwksClient({
+  jwksUri: `${env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
+  cache: true,
+  rateLimit: true,
+});
+
+function getSigningKey(header: jwt.JwtHeader, callback: jwt.SigningKeyCallback): void {
+  if (!header.kid) {
+    callback(new Error('Token header missing kid'));
+    return;
+  }
+
+  client.getSigningKey(header.kid, (err, key) => {
+    if (err || !key) {
+      callback(err ?? new Error('Signing key not found'));
+      return;
+    }
+    callback(null, key.getPublicKey());
+  });
+}
+
+/**
  * Verifies the Authorization header's Bearer token against Supabase's
- * JWT secret (HS256). On success, attaches `req.user = { id, email }`.
+ * JWKS public keys (ES256). On success, attaches req.user = { id, email }.
  * On failure, passes an AppError(401, ...) to the error handler.
- *
- * Mount this on any route that requires a logged-in user:
- *   router.post('/', authenticate, controller.create)
  */
 export function authenticate(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
@@ -46,18 +69,19 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
 
   const token = authHeader.slice('Bearer '.length);
 
-  try {
-    const decoded = jwt.verify(token, env.SUPABASE_JWT_SECRET, {
-      algorithms: ['HS256'],
-    }) as SupabaseJwtPayload;
+  jwt.verify(token, getSigningKey, { algorithms: ['ES256'] }, (err, decoded) => {
+    if (err || !decoded) {
+      next(new AppError(401, 'Invalid or expired token'));
+      return;
+    }
+
+    const payload = decoded as SupabaseJwtPayload;
 
     req.user = {
-      id: decoded.sub,
-      ...(decoded.email !== undefined && { email: decoded.email }),
+      id: payload.sub,
+      ...(payload.email !== undefined && { email: payload.email }),
     };
 
     next();
-  } catch (err) {
-    next(new AppError(401, 'Invalid or expired token'));
-  }
+  });
 }
