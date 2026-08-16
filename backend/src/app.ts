@@ -14,6 +14,9 @@ import { authenticate } from './middleware/authenticate.js';
 
 import { validateBody } from './middleware/validateRequest.js';
 import { requestsRouter } from './modules/requests/requests.router.js';
+import { ratingsRouter } from './modules/ratings/ratings.routes.js';
+import { reportsRouter } from './modules/reports/reports.routes.js';
+import { transactionsRouter } from './modules/transactions/transactions.routes.js';
 
 
 
@@ -45,16 +48,11 @@ app.post('/test-validate', validateBody(testSchema), (req, res) => {
 
 
 app.use('/api/v1/requests', requestsRouter);
-// ------------------------------
-// Routes will be mounted here as modules are built, e.g:
-// import { requestsRouter } from './modules/requests/requests.routes.js';
-// app.use('/api/v1/requests', requestsRouter);
-// ------------------------------
 
-// ------------------------------
-// Error handling — MUST be mounted last, after all routes.
-// notFoundHandler catches unmatched routes,
-// errorHandler is the final catch-all for anything thrown/passed via next(err).
+app.use('/api/v1/ratings', ratingsRouter);
+app.use('/api/v1/reports', reportsRouter);
+app.use('/api/v1/transactions', transactionsRouter);
+
 // ------------------------------
 app.use(notFoundHandler);
 app.use(errorHandler);
