@@ -4,6 +4,7 @@ export const routes = {
   goingOut: () => '/going-out' as const,
   messages: () => '/messages' as const,
   earnings: () => '/earnings' as const,
+  settings: () => '/settings' as const,
   createRequest: () => '/request/create' as const,
   requestDetails: (id: string) => `/request/${id}` as const,
   chat: (id: string) => `/chat/${id}` as const,
