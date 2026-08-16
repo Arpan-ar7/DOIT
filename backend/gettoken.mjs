@@ -6,8 +6,8 @@ const supabase = createClient(
 );
 
 const { data, error } = await supabase.auth.signInWithPassword({
-  email: 'test2@uni.cart',
-  password: 'test1234',
+  email: 'test@uni.cart',
+  password: '123',
 });
 
 if (error) {
