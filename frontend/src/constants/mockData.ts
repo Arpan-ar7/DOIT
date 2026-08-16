@@ -167,3 +167,15 @@ export const initialGoingTrips: GoingTrip[] = [
     backBy: 'Back by 6:15 PM',
   },
 ];
+// Mock "already taken" usernames, used to demo uniqueness checking in Settings.
+// Replace with a real server-side check once the backend exists.
+export const TAKEN_USERNAMES: string[] = [
+  'sana_kapoor',
+  'rohan_v',
+  'aditi_m',
+  'rhea',
+  'kabir',
+  'admin',
+  'support',
+  'campuscarry',
+];
