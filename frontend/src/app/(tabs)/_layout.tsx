@@ -18,6 +18,7 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
       }}
     >
+      {/* ── Final 4 visible tabs, as agreed ── */}
       <Tabs.Screen
         name="index"
         options={{
@@ -33,6 +34,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'Orders',
+          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="messages"
         options={{
           title: 'Messages',
@@ -42,14 +50,15 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      {/* ── HIDDEN from the tab bar, but still fully reachable ──
+          href: null removes the tab button while keeping the screen
+          navigable via router.push(). Nothing needed to move — profile.tsx
+          and earnings.tsx stay exactly where they are.
+          Profile opens from: the avatar on Home.
+          Earnings opens from: Profile's own menu ("My earnings & history"). */}
       <Tabs.Screen name="earnings" options={{ href: null }} />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -28,7 +28,6 @@ export default function SettingsScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(user?.photoUri ?? null);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [sharePhone, setSharePhone] = useState(false);
 
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -89,6 +88,12 @@ export default function SettingsScreen() {
 
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2500);
+  }
+
+  // Saves IMMEDIATELY on toggle — unlike the text fields above, a switch
+  // should feel instant, not require a separate "Save" tap.
+  function handleToggleSharePhone(value: boolean) {
+    updateProfile({ sharesPhone: value });
   }
 
   return (
@@ -174,9 +179,18 @@ export default function SettingsScreen() {
             <View style={[styles.switchRow, { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 14 }]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.switchLabel}>Share phone number</Text>
-                <Text style={styles.switchSub}>Let an accepted delivery partner see your number.</Text>
+                <Text style={styles.switchSub}>
+                  Show your number to whoever you're paired with once a request is accepted.
+                </Text>
               </View>
-              <Switch value={sharePhone} onValueChange={setSharePhone} trackColor={{ true: colors.green }} />
+              {/* CHANGED — now reads/writes user.sharesPhone via AuthContext,
+                  instead of local state that reset every time you left this
+                  screen. Saves the instant you tap it. */}
+              <Switch
+                value={user?.sharesPhone ?? false}
+                onValueChange={handleToggleSharePhone}
+                trackColor={{ true: colors.green }}
+              />
             </View>
           </View>
 

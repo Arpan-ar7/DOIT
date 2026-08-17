@@ -68,25 +68,21 @@ export default function GoingOutScreen() {
           )}
         </View>
 
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Students going out now</Text>
-        </View>
-
-        {goingTrips.map((trip) => (
-          <View key={trip.id} style={styles.tripCard}>
-            <View style={styles.tripIcon}>
-              <Ionicons name="bag-handle-outline" size={19} color={colors.green} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tripTitle}>
-                {trip.isCurrentUser ? 'You' : trip.studentName} going to {trip.destination}
-              </Text>
-              <Text style={styles.tripSub}>
-                {trip.leavingAt} · {trip.backBy}
-              </Text>
-            </View>
+        {/* PRIVACY CHANGE — individual trip cards (who's going where, when)
+            are gone. Only a total count is shown, with zero identifying
+            info. This protects students from broadcasting "I'm off campus
+            right now" details to everyone browsing the app. */}
+        <View style={styles.countCard}>
+          <View style={styles.countIcon}>
+            <Ionicons name="people-outline" size={22} color={colors.green} />
           </View>
-        ))}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.countNumber}>{goingTrips.length}</Text>
+            <Text style={styles.countLabel}>
+              {goingTrips.length === 1 ? 'student is' : 'students are'} currently going out
+            </Text>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -132,27 +128,26 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
   btnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   confirmedText: { color: colors.green, fontSize: 12, fontWeight: '600', marginTop: 10, textAlign: 'center' },
-  sectionHead: { marginTop: 25, marginBottom: 13 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },
-  tripCard: {
+  // Replaces the old "Students going out now" list + section header entirely.
+  countCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 14,
+    gap: 14,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: 17,
-    marginBottom: 10,
+    borderRadius: radius.lg,
+    padding: 18,
+    marginTop: 22,
   },
-  tripIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: '#e7f3ed',
+  countIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: colors.mint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tripTitle: { fontSize: 13, fontWeight: '700', color: colors.ink },
-  tripSub: { fontSize: 11, color: colors.muted, marginTop: 4 },
+  countNumber: { fontSize: 24, fontWeight: '800', color: colors.ink },
+  countLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
 });

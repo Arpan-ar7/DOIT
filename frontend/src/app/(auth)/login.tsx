@@ -19,7 +19,10 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
 
+  // Three fields now, not two — email + GR No + password, all three have
+  // to match the same account. This is the "double verification" step.
   const [email, setEmail] = useState('');
+  const [grNo, setGrNo] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -28,12 +31,11 @@ export default function LoginScreen() {
   async function handleLogin() {
     setError('');
     setLoading(true);
-    const result = await login(email, password);
+    const result = await login(email, grNo, password);
     setLoading(false);
     if (!result.success) {
       setError(result.error ?? 'Something went wrong. Try again.');
     }
-    // On success the root layout's auth gate redirects into the app automatically.
   }
 
   return (
@@ -47,14 +49,24 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>Log in to CampusCarry to continue.</Text>
 
           <View style={styles.formCard}>
-            <Text style={styles.label}>College email</Text>
+            <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="you@college.edu"
+              placeholder="you@example.com"
               autoCapitalize="none"
               keyboardType="email-address"
               value={email}
               onChangeText={setEmail}
+            />
+
+            <Text style={styles.label}>GR No</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="6-digit registration number"
+              keyboardType="number-pad"
+              maxLength={6}
+              value={grNo}
+              onChangeText={setGrNo}
             />
 
             <Text style={styles.label}>Password</Text>

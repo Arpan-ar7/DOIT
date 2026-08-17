@@ -14,22 +14,39 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { isGrNoFormatValid } from '../../utils/validation';
 
 export default function SignupScreen() {
   const router = useRouter();
   const { signup } = useAuth();
 
+  // ── Form fields, matching exactly what was asked for: ──
+  // Name, Email, GR No, Password, Confirm Password, Phone.
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [grNo, setGrNo] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Live feedback under the GR No field as the person types — same pattern
+  // we used for the username availability check in Settings.
+  const trimmedGrNo = grNo.trim();
+  const grNoFormatOk = trimmedGrNo.length === 0 || isGrNoFormatValid(trimmedGrNo);
 
   async function handleSignup() {
     setError('');
 
+    // Checks that only make sense at the screen level (not inside
+    // AuthContext, since AuthContext doesn't know about "confirm password").
+    if (!grNoFormatOk) {
+      setError('GR No must be exactly 6 digits.');
+      return;
+    }
     if (password.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
@@ -40,11 +57,17 @@ export default function SignupScreen() {
     }
 
     setLoading(true);
-    const result = await signup(name, email, password);
+    // Everything else (email format, GR No uniqueness, phone format) is
+    // validated inside signup() itself, since that's shared logic that
+    // should behave the same regardless of which screen calls it.
+    const result = await signup(name, email, grNo, phone, password);
     setLoading(false);
+
     if (!result.success) {
       setError(result.error ?? 'Something went wrong. Try again.');
     }
+    // On success, the root layout's AuthGate automatically redirects into
+    // the app — no manual navigation needed here.
   }
 
   return (
@@ -55,7 +78,7 @@ export default function SignupScreen() {
             <Ionicons name="bicycle" size={30} color="#fff" />
           </View>
           <Text style={styles.title}>Create your account</Text>
-          <Text style={styles.subtitle}>Join CampusCarry with your college email.</Text>
+          <Text style={styles.subtitle}>Join CampusCarry to start requesting or delivering.</Text>
 
           <View style={styles.formCard}>
             <Text style={styles.label}>Full name</Text>
@@ -66,14 +89,37 @@ export default function SignupScreen() {
               onChangeText={setName}
             />
 
-            <Text style={styles.label}>College email</Text>
+            <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="you@college.edu"
+              placeholder="you@example.com"
               autoCapitalize="none"
               keyboardType="email-address"
               value={email}
               onChangeText={setEmail}
+            />
+
+            <Text style={styles.label}>GR No</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="6-digit registration number"
+              keyboardType="number-pad"
+              maxLength={6}
+              value={grNo}
+              onChangeText={setGrNo}
+            />
+            {trimmedGrNo.length > 0 && !grNoFormatOk && (
+              <Text style={styles.hintTextError}>Must be exactly 6 digits.</Text>
+            )}
+
+            <Text style={styles.label}>Phone number</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="10-digit mobile number"
+              keyboardType="phone-pad"
+              maxLength={10}
+              value={phone}
+              onChangeText={setPhone}
             />
 
             <Text style={styles.label}>Password</Text>
@@ -149,6 +195,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.ink,
   },
+  hintTextError: { color: '#c14b30', fontSize: 11, marginTop: 5, fontWeight: '600' },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',

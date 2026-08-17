@@ -2,6 +2,7 @@ export const routes = {
   home: () => '/' as const,
   profile: () => '/profile' as const,
   goingOut: () => '/going-out' as const,
+  orders: () => '/orders' as const, // NEW
   messages: () => '/messages' as const,
   earnings: () => '/earnings' as const,
   settings: () => '/settings' as const,

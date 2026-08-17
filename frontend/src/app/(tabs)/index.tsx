@@ -10,7 +10,8 @@ import RequestCard from '../../components/RequestCard';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { requests } = useRequests();
+  // CHANGED — now also pulling goingTrips, to show a live count on the banner.
+  const { requests, goingTrips } = useRequests();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<RequestCategory | 'all'>('all');
 
@@ -19,7 +20,7 @@ export default function HomeScreen() {
   const activeRequests = useMemo(() => {
     return requests.filter((r) => {
       if (r.requester.id === CURRENT_USER.id) return false;
-      if (r.status !== 'requested') return false;
+      if (r.status !== 'pending') return false;
       if (isExpired(r.expiresAt)) return false;
       if (category !== 'all' && r.category !== category) return false;
       if (search.trim()) {
@@ -84,7 +85,12 @@ export default function HomeScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.outingTitle}>Heading out today?</Text>
-                <Text style={styles.outingSub}>Help a campus mate on your way.</Text>
+                {/* CHANGED — was a static line, now shows the live count of
+                    students currently going out, with no names/details. */}
+                <Text style={styles.outingSub}>
+                  {goingTrips.length} {goingTrips.length === 1 ? 'student is' : 'students are'} heading out
+                  right now
+                </Text>
               </View>
               <View style={styles.outingBtn}>
                 <Text style={styles.outingBtnText}>I'm going</Text>
@@ -172,13 +178,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   searchInput: { flex: 1, fontSize: 13, color: colors.ink, padding: 0 },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginHorizontal: spacing.xl,
-    marginTop: 10,
-  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginHorizontal: spacing.xl, marginTop: 10 },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 7,

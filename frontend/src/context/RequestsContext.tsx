@@ -27,6 +27,8 @@ type NewRequestInput = {
   itemBudget: number;
   deliveryFee: number;
   notes: string;
+  deliveryLocation: string;
+  expiryHours: number;
 };
 
 type NewTripInput = {
@@ -52,14 +54,10 @@ type RequestsContextValue = {
   getRequestById: (id: string) => DeliveryRequest | undefined;
 };
 
-const STATUS_ORDER: RequestStatus[] = [
-  'requested',
-  'accepted',
-  'shopping',
-  'returning',
-  'delivered',
-  'completed',
-];
+// The linear progression a delivery partner walks through. "cancelled" is
+// deliberately NOT in here — it's a side-exit reachable only from "pending"
+// via cancelRequest(), never something you "advance" into or out of.
+const STATUS_ORDER: RequestStatus[] = ['pending', 'accepted', 'in_progress', 'completed'];
 
 const RequestsContext = createContext<RequestsContextValue | undefined>(undefined);
 
@@ -70,11 +68,12 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
   const [readStatus, setReadStatus] = useState<Record<string, number>>({});
 
   function createRequest(input: NewRequestInput) {
+    const { expiryHours, ...rest } = input;
     const newRequest: DeliveryRequest = {
       id: `r${Date.now()}`,
-      ...input,
-      expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      status: 'requested',
+      ...rest,
+      expiresAt: new Date(Date.now() + expiryHours * 60 * 60 * 1000).toISOString(),
+      status: 'pending',
       requester: {
         id: CURRENT_USER.id,
         name: CURRENT_USER.name,
@@ -87,9 +86,20 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     setRequests((prev) => [newRequest, ...prev]);
   }
 
+  // CHANGED — this used to DELETE the request from the array entirely.
+  // Now it just marks it "cancelled" and keeps it. This is what makes it
+  // disappear from everyone else's view (Home's public feed only shows
+  // status === 'pending', so this naturally drops out) while still staying
+  // visible to YOU specifically, in your own request history / Orders tab.
+  // The status==='pending' guard means you can't cancel something that's
+  // already been accepted — matches the fix in Request Details too.
   function cancelRequest(requestId: string) {
     setRequests((prev) =>
-      prev.filter((r) => !(r.id === requestId && r.requester.id === CURRENT_USER.id && r.status === 'requested')),
+      prev.map((r) =>
+        r.id === requestId && r.requester.id === CURRENT_USER.id && r.status === 'pending'
+          ? { ...r, status: 'cancelled' }
+          : r,
+      ),
     );
   }
 
@@ -101,6 +111,10 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // Walks one step forward through STATUS_ORDER. With the new simplified
+  // list, this now only ever does two things: accepted → in_progress, or
+  // in_progress → completed. Never called on a cancelled request (no button
+  // exists for that case — see order/[id].tsx).
   function advanceStatus(requestId: string) {
     setRequests((prev) =>
       prev.map((r) => {
