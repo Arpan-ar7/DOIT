@@ -1,24 +1,21 @@
 import { supabaseClient } from '../../config/supabaseClient.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { logger } from '../../utils/logger.js';
+import { sendPush } from '../notifications/notifications.service.js';
 import type { MessageRecord } from './messages.types.js';
 
-/**
- * IMPORTANT: this service does NOT broadcast messages to clients.
- * Supabase Realtime listens to Postgres's own replication stream —
- * the moment we INSERT a row below, every client subscribed with a
- * matching filter receives it automatically. Our only job here is
- * to validate the sender is allowed to write to this chat, then insert.
- *
- * These checks mirror the RLS policies (messages_select_participant,
- * messages_insert_participant) exactly — since the service-role client
- * bypasses RLS, we must enforce the same rules here in code.
- */
+async function notifySafely(fn: () => Promise<unknown>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    logger.error({ err }, 'Notification failed (non-blocking)');
+  }
+}
 
 async function getRequestParticipants(requestId: string) {
   const { data, error } = await supabaseClient
     .from('requests')
-    .select('id, status, requester_id, deliverer_id')
+    .select('id, status, requester_id, deliverer_id, item_name')
     .eq('id', requestId)
     .single();
 
@@ -69,7 +66,25 @@ export async function sendMessage(
     throw new AppError(500, 'Failed to send message');
   }
 
-  return data as MessageRecord;
+  const message = data as MessageRecord;
+
+  // Notify whichever participant DIDN'T send this message.
+  const recipientId =
+    request.requester_id === senderId ? request.deliverer_id : request.requester_id;
+
+  if (recipientId) {
+    await notifySafely(() =>
+      sendPush(
+        recipientId,
+        'new_message',
+        `New message about "${request.item_name}"`,
+        content.length > 100 ? content.slice(0, 100) + '...' : content,
+        requestId
+      )
+    );
+  }
+
+  return message;
 }
 
 export async function getMessageHistory(
