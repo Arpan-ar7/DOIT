@@ -2,7 +2,7 @@ import { supabaseClient } from '../../config/supabaseClient.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { sendPush } from '../notifications/notifications.service.js';
-import type { CreateRequestInput, RequestRecord, RequestStatus } from './requests.types.js';
+import type { CreateRequestInput, RequestRecord, RequestStatus } from './requests.type.js';
 
 /**
  * NOTE ON AUTHORIZATION:
