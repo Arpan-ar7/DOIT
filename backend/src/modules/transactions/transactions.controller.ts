@@ -16,7 +16,7 @@ export async function confirm(req: Request, res: Response, next: NextFunction): 
   try {
     if (!req.user) throw new AppError(401, 'Not authenticated');
     const { id } = req.params;
-    if (!id) throw new AppError(400, 'Missing transaction id');
+    if (!id || Array.isArray(id)) throw new AppError(400, 'Missing transaction id');
     const result = await transactionsService.confirmTransaction(id, req.user.id);
     res.status(200).json({ data: result });
   } catch (err) {
@@ -32,7 +32,7 @@ export async function getForRequest(
   try {
     if (!req.user) throw new AppError(401, 'Not authenticated');
     const { requestId } = req.params;
-    if (!requestId) throw new AppError(400, 'Missing requestId');
+    if (!requestId || Array.isArray(requestId)) throw new AppError(400, 'Missing requestId');
     const result = await transactionsService.getTransactionsForRequest(requestId, req.user.id);
     res.status(200).json({ data: result });
   } catch (err) {
