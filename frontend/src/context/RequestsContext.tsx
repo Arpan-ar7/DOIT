@@ -1,23 +1,20 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import {
-  DeliveryRequest,
-  RequestStatus,
-  RequestCategory,
-  GoingTrip,
-  initialRequests,
-  initialGoingTrips,
-  CURRENT_USER,
-} from '../constants/mockData';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { DeliveryRequest, RequestCategory, GoingTrip, initialGoingTrips, CATEGORY_EMOJIS } from '../constants/mockData';
 import { formatClockTime } from '../utils/time';
+import { useAuth } from './AuthContext';
+import {
+  getOpenFeed,
+  getMyRequests,
+  createRequestApi,
+  acceptRequestApi,
+  cancelRequestApi,
+  completeRequestApi,
+  submitRatingApi,
+  ApiRequestRow,
+} from '../lib/requestsApi';
+import { getProfilesByIds, initialsFromName, ProfileRow } from '../lib/profilesApi';
 
-export type ChatMessage = {
-  id: string;
-  requestId: string;
-  fromMe: boolean;
-  text: string;
-  time: string;
-  createdAt: number;
-};
+export type ChatMessage = { id: string; requestId: string; fromMe: boolean; text: string; time: string; createdAt: number };
 
 type NewRequestInput = {
   itemName: string;
@@ -28,25 +25,26 @@ type NewRequestInput = {
   deliveryFee: number;
   notes: string;
   deliveryLocation: string;
-  expiryHours: number;
+  expiryHours: number; // accepted but not sent — see gap #2
 };
 
-type NewTripInput = {
-  destination: string;
-  leavingAt: string;
-  backBy: string;
-};
+type NewTripInput = { destination: string; leavingAt: string; backBy: string };
+
+type ActionResult = { success: boolean; error?: string };
 
 type RequestsContextValue = {
   requests: DeliveryRequest[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
   messagesByRequest: Record<string, ChatMessage[]>;
   goingTrips: GoingTrip[];
   readStatus: Record<string, number>;
-  createRequest: (input: NewRequestInput) => void;
-  cancelRequest: (requestId: string) => void;
-  acceptRequest: (requestId: string) => void;
-  advanceStatus: (requestId: string) => void;
-  rateRequest: (requestId: string, rating: number) => void;
+  createRequest: (input: NewRequestInput) => Promise<ActionResult>;
+  cancelRequest: (requestId: string) => Promise<ActionResult>;
+  acceptRequest: (requestId: string) => Promise<ActionResult>;
+  advanceStatus: (requestId: string) => Promise<ActionResult>;
+  rateRequest: (requestId: string, rating: number) => Promise<ActionResult>;
   sendMessage: (requestId: string, text: string, fromMe?: boolean) => void;
   seedConversation: (requestId: string, requesterFirstName: string) => void;
   markRead: (requestId: string) => void;
@@ -54,82 +52,158 @@ type RequestsContextValue = {
   getRequestById: (id: string) => DeliveryRequest | undefined;
 };
 
-// The linear progression a delivery partner walks through. "cancelled" is
-// deliberately NOT in here — it's a side-exit reachable only from "pending"
-// via cancelRequest(), never something you "advance" into or out of.
-const STATUS_ORDER: RequestStatus[] = ['pending', 'accepted', 'in_progress', 'completed'];
-
 const RequestsContext = createContext<RequestsContextValue | undefined>(undefined);
 
+function mapApiRequest(row: ApiRequestRow, profilesById: Record<string, ProfileRow>): DeliveryRequest {
+  const categoryKey = (row.category as RequestCategory) || 'other';
+  const emoji = CATEGORY_EMOJIS.find((c) => c.category === categoryKey)?.emoji ?? '📦';
+  const requesterProfile = profilesById[row.requester_id];
+  const delivererProfile = row.deliverer_id ? profilesById[row.deliverer_id] : undefined;
+
+  return {
+    id: row.id,
+    itemName: row.item_name,
+    shop: row.pickup_location === 'Not specified' ? '' : row.pickup_location,
+    emoji,
+    category: categoryKey,
+    itemBudget: row.approximate_price ?? 0,
+    deliveryFee: row.delivery_fee,
+    notes: row.notes ?? '',
+    deliveryLocation: row.dropoff_location,
+    expiresAt: row.expires_at,
+    // 'expired' isn't actually written by anything yet (no scheduled job
+    // exists on the backend) — treat it as pending, let isExpired() handle it.
+    status: row.status === 'expired' ? 'pending' : row.status,
+    requester: {
+      id: row.requester_id,
+      name: requesterProfile?.full_name ?? 'Unknown student',
+      initials: requesterProfile ? initialsFromName(requesterProfile.full_name) : '??',
+      hostel: '', // no hostel column in the DB yet
+      rating: requesterProfile?.average_rating ?? 0,
+      completedRequests: requesterProfile?.total_ratings ?? 0, // approximation
+    },
+    accepterId: row.deliverer_id ?? undefined,
+    accepter: delivererProfile
+      ? {
+          name: delivererProfile.full_name,
+          initials: initialsFromName(delivererProfile.full_name),
+          rating: delivererProfile.average_rating,
+          completedRequests: delivererProfile.total_ratings,
+          phone: '', // phone-sharing removed, per your last message
+          sharePhone: false,
+        }
+      : undefined,
+  };
+}
+
 export function RequestsProvider({ children }: { children: ReactNode }) {
-  const [requests, setRequests] = useState<DeliveryRequest[]>(initialRequests);
+  const { user, isAuthenticated } = useAuth();
+
+  const [requests, setRequests] = useState<DeliveryRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // STILL mock/local — backend has no messages module yet, and "going out"
+  // only stores one current status per profile, not a history to fetch.
   const [messagesByRequest, setMessagesByRequest] = useState<Record<string, ChatMessage[]>>({});
   const [goingTrips, setGoingTrips] = useState<GoingTrip[]>(initialGoingTrips);
   const [readStatus, setReadStatus] = useState<Record<string, number>>({});
 
-  function createRequest(input: NewRequestInput) {
-    const { expiryHours, ...rest } = input;
-    const newRequest: DeliveryRequest = {
-      id: `r${Date.now()}`,
-      ...rest,
-      expiresAt: new Date(Date.now() + expiryHours * 60 * 60 * 1000).toISOString(),
-      status: 'pending',
-      requester: {
-        id: CURRENT_USER.id,
-        name: CURRENT_USER.name,
-        initials: CURRENT_USER.initials,
-        hostel: 'My Hostel',
-        rating: CURRENT_USER.rating,
-        completedRequests: CURRENT_USER.deliveries,
-      },
-    };
-    setRequests((prev) => [newRequest, ...prev]);
+  // Pulls the public feed + your posted requests + your accepted deliveries,
+  // merges into ONE de-duplicated array — keeps every screen (Home, Orders,
+  // etc.) working unchanged, since they already filter this locally.
+  const refresh = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const [feed, mine, delivering] = await Promise.all([
+        getOpenFeed(),
+        getMyRequests('requester'),
+        getMyRequests('deliverer'),
+      ]);
+      const allRows = [...feed, ...mine, ...delivering];
+      const uniqueRows = Array.from(new Map(allRows.map((r) => [r.id, r])).values());
+
+      const profileIds = uniqueRows.flatMap((r) => [r.requester_id, r.deliverer_id].filter(Boolean) as string[]);
+      const profilesById = await getProfilesByIds(profileIds);
+
+      setRequests(uniqueRows.map((row) => mapApiRequest(row, profilesById)));
+    } catch (err: any) {
+      setError(err.message ?? 'Could not load requests.');
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  async function createRequest(input: NewRequestInput): Promise<ActionResult> {
+    try {
+      await createRequestApi({
+        item_name: input.itemName,
+        category: input.category,
+        approximate_price: input.itemBudget,
+        delivery_fee: input.deliveryFee,
+        notes: input.notes || undefined,
+        pickup_location: input.shop || 'Not specified', // required by the DB; our UI made it optional
+        dropoff_location: input.deliveryLocation,
+      });
+      await refresh();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message ?? 'Could not post request.' };
+    }
   }
 
-  // CHANGED — this used to DELETE the request from the array entirely.
-  // Now it just marks it "cancelled" and keeps it. This is what makes it
-  // disappear from everyone else's view (Home's public feed only shows
-  // status === 'pending', so this naturally drops out) while still staying
-  // visible to YOU specifically, in your own request history / Orders tab.
-  // The status==='pending' guard means you can't cancel something that's
-  // already been accepted — matches the fix in Request Details too.
-  function cancelRequest(requestId: string) {
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId && r.requester.id === CURRENT_USER.id && r.status === 'pending'
-          ? { ...r, status: 'cancelled' }
-          : r,
-      ),
-    );
+  async function cancelRequest(requestId: string): Promise<ActionResult> {
+    try {
+      await cancelRequestApi(requestId);
+      await refresh();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message ?? 'Could not cancel request.' };
+    }
   }
 
-  function acceptRequest(requestId: string) {
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId ? { ...r, status: 'accepted', accepterId: CURRENT_USER.id } : r,
-      ),
-    );
+  async function acceptRequest(requestId: string): Promise<ActionResult> {
+    try {
+      await acceptRequestApi(requestId);
+      await refresh();
+      return { success: true };
+    } catch (err: any) {
+      const message = err.message?.includes('409')
+        ? 'Someone else already accepted this request.'
+        : err.message ?? 'Could not accept request.';
+      return { success: false, error: message };
+    }
   }
 
-  // Walks one step forward through STATUS_ORDER. With the new simplified
-  // list, this now only ever does two things: accepted → in_progress, or
-  // in_progress → completed. Never called on a cancelled request (no button
-  // exists for that case — see order/[id].tsx).
-  function advanceStatus(requestId: string) {
-    setRequests((prev) =>
-      prev.map((r) => {
-        if (r.id !== requestId) return r;
-        const currentIndex = STATUS_ORDER.indexOf(r.status);
-        const next = STATUS_ORDER[Math.min(currentIndex + 1, STATUS_ORDER.length - 1)];
-        return { ...r, status: next };
-      }),
-    );
+  // Collapsed to one step — see gap #1. Always jumps straight to completed.
+  async function advanceStatus(requestId: string): Promise<ActionResult> {
+    try {
+      await completeRequestApi(requestId);
+      await refresh();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message ?? 'Could not update status.' };
+    }
   }
 
-  function rateRequest(requestId: string, rating: number) {
-    setRequests((prev) => prev.map((r) => (r.id === requestId ? { ...r, rating } : r)));
+  async function rateRequest(requestId: string, rating: number): Promise<ActionResult> {
+    try {
+      await submitRatingApi({ request_id: requestId, score: rating });
+      await refresh();
+      return { success: true };
+    } catch (err: any) {
+      const message = err.message?.includes('409') ? 'You already rated this delivery.' : err.message ?? 'Could not submit rating.';
+      return { success: false, error: message };
+    }
   }
 
+  // ── Unchanged — still local/mock, no backend support yet ──
   function sendMessage(requestId: string, text: string, fromMe: boolean = true) {
     const now = Date.now();
     const message: ChatMessage = {
@@ -140,10 +214,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
       time: formatClockTime(new Date(now)),
       createdAt: now,
     };
-    setMessagesByRequest((prev) => ({
-      ...prev,
-      [requestId]: [...(prev[requestId] ?? []), message],
-    }));
+    setMessagesByRequest((prev) => ({ ...prev, [requestId]: [...(prev[requestId] ?? []), message] }));
   }
 
   function seedConversation(requestId: string, requesterFirstName: string) {
@@ -167,10 +238,11 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
   }
 
   function announceTrip(input: NewTripInput) {
+    if (!user) return;
     const trip: GoingTrip = {
       id: `g${Date.now()}`,
-      studentName: CURRENT_USER.name,
-      studentInitials: CURRENT_USER.initials,
+      studentName: user.name,
+      studentInitials: initialsFromName(user.name),
       isCurrentUser: true,
       ...input,
     };
@@ -184,20 +256,10 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
   return (
     <RequestsContext.Provider
       value={{
-        requests,
-        messagesByRequest,
-        goingTrips,
-        readStatus,
-        createRequest,
-        cancelRequest,
-        acceptRequest,
-        advanceStatus,
-        rateRequest,
-        sendMessage,
-        seedConversation,
-        markRead,
-        announceTrip,
-        getRequestById,
+        requests, loading, error, refresh,
+        messagesByRequest, goingTrips, readStatus,
+        createRequest, cancelRequest, acceptRequest, advanceStatus, rateRequest,
+        sendMessage, seedConversation, markRead, announceTrip, getRequestById,
       }}
     >
       {children}

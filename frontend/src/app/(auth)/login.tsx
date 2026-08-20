@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, TextInput, StyleSheet, Pressable, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,8 +11,6 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
 
-  // Three fields now, not two — email + GR No + password, all three have
-  // to match the same account. This is the "double verification" step.
   const [email, setEmail] = useState('');
   const [grNo, setGrNo] = useState('');
   const [password, setPassword] = useState('');
@@ -40,8 +30,16 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {/* CHANGED — 'height' instead of undefined on Android. Combined with
+          app.json's softwareKeyboardLayoutMode: 'resize', this actually
+          shrinks the available space when the keyboard opens, so nothing
+          gets hidden behind it. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.logoBox}>
             <Ionicons name="bicycle" size={30} color="#fff" />
           </View>
@@ -104,55 +102,28 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
-  content: { flexGrow: 1, padding: spacing.xl, justifyContent: 'center' },
+  // CHANGED — removed justifyContent: 'center'. Vertically centering a form
+  // looks fine when the keyboard is closed, but once it opens, the browser
+  // squeezes the centered block into whatever space is left, which is what
+  // was pushing fields under the keyboard. Top-anchored + scrollable is how
+  // every normal app's login screen behaves.
+  content: { flexGrow: 1, padding: spacing.xl, paddingTop: 60 },
   logoBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: colors.green,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
+    width: 56, height: 56, borderRadius: 18, backgroundColor: colors.green,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 18,
   },
   title: { fontSize: 26, fontWeight: '700', color: colors.ink, marginBottom: 6 },
   subtitle: { fontSize: 13, color: colors.muted, marginBottom: 26 },
-  formCard: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.lg,
-    padding: 18,
-  },
+  formCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 18 },
   label: { fontSize: 12, color: '#516164', fontWeight: '700', marginTop: 15, marginBottom: 7 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e2e7e0',
-    backgroundColor: '#fafbf8',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  passwordRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e7e0',
-    backgroundColor: '#fafbf8',
-    borderRadius: 12,
-  },
+  input: { borderWidth: 1, borderColor: '#e2e7e0', backgroundColor: '#fafbf8', borderRadius: 12, padding: 12, fontSize: 14, color: colors.ink },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e2e7e0', backgroundColor: '#fafbf8', borderRadius: 12 },
   passwordInput: { flex: 1, padding: 12, fontSize: 14, color: colors.ink },
   eyeBtn: { paddingHorizontal: 12 },
   errorText: { color: '#c14b30', fontSize: 12, fontWeight: '600', marginTop: 12 },
-  btn: {
-    backgroundColor: colors.green,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 20,
-  },
+  btn: { backgroundColor: colors.green, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 20 },
   btnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 22 },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 22, marginBottom: 20 },
   switchText: { color: colors.muted, fontSize: 13 },
   switchLink: { color: colors.green, fontSize: 13, fontWeight: '700' },
 });

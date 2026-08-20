@@ -32,6 +32,7 @@ export default function SettingsScreen() {
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [passwordNotice, setPasswordNotice] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const trimmedUsername = username.trim().toLowerCase();
   const usernameFormatOk = trimmedUsername.length === 0 || isUsernameFormatValid(trimmedUsername);
@@ -57,7 +58,7 @@ export default function SettingsScreen() {
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     setSaveError('');
     setSaveSuccess(false);
 
@@ -74,12 +75,14 @@ export default function SettingsScreen() {
       return;
     }
 
-    const result = updateProfile({
+    setSaving(true);
+    const result = await updateProfile({
       name: name.trim(),
       username: trimmedUsername || user?.username,
       hostel: hostel.trim(),
       photoUri,
     });
+    setSaving(false);
 
     if (!result.success) {
       setSaveError(result.error ?? 'Could not save changes.');
@@ -88,12 +91,6 @@ export default function SettingsScreen() {
 
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2500);
-  }
-
-  // Saves IMMEDIATELY on toggle — unlike the text fields above, a switch
-  // should feel instant, not require a separate "Save" tap.
-  function handleToggleSharePhone(value: boolean) {
-    updateProfile({ sharesPhone: value });
   }
 
   return (
@@ -160,8 +157,8 @@ export default function SettingsScreen() {
             {!!saveError && <Text style={styles.errorText}>{saveError}</Text>}
             {saveSuccess && <Text style={styles.successText}>Profile updated.</Text>}
 
-            <Pressable style={styles.btn} onPress={handleSave}>
-              <Text style={styles.btnText}>Save changes</Text>
+            <Pressable style={styles.btn} onPress={handleSave} disabled={saving}>
+              <Text style={styles.btnText}>{saving ? 'Saving...' : 'Save changes'}</Text>
             </Pressable>
           </View>
 
@@ -176,22 +173,7 @@ export default function SettingsScreen() {
               </View>
               <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled} trackColor={{ true: colors.green }} />
             </View>
-            <View style={[styles.switchRow, { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 14 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.switchLabel}>Share phone number</Text>
-                <Text style={styles.switchSub}>
-                  Show your number to whoever you're paired with once a request is accepted.
-                </Text>
-              </View>
-              {/* CHANGED — now reads/writes user.sharesPhone via AuthContext,
-                  instead of local state that reset every time you left this
-                  screen. Saves the instant you tap it. */}
-              <Switch
-                value={user?.sharesPhone ?? false}
-                onValueChange={handleToggleSharePhone}
-                trackColor={{ true: colors.green }}
-              />
-            </View>
+            {/* "Share phone number" removed — will come back later, per request. */}
           </View>
 
           <View style={styles.sectionHead}>
@@ -204,9 +186,7 @@ export default function SettingsScreen() {
               <Ionicons name="chevron-forward" size={16} color="#9ba6a0" />
             </Pressable>
             {passwordNotice && (
-              <Text style={styles.noticeText}>
-                Password changes will be available once your account connects to the backend.
-              </Text>
+              <Text style={styles.noticeText}>Password changes will be available soon.</Text>
             )}
           </View>
 

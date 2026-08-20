@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, SafeAreaView, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
-import { CURRENT_USER, isExpired, CATEGORIES } from '../../constants/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { isExpired, CATEGORIES } from '../../constants/mockData';
 import { useCountdown } from '../../hooks/useCountdown';
 import { routes } from '../../constants/routes';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -13,9 +14,15 @@ import Avatar from '../../components/Avatar';
 export default function RequestDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const { getRequestById, acceptRequest, cancelRequest } = useRequests();
   const request = getRequestById(id);
   const countdown = useCountdown(request?.expiresAt ?? new Date().toISOString());
+
+  // Real network calls now — need their own loading + error state.
+  const [accepting, setAccepting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   if (!request) {
     return (
@@ -30,40 +37,46 @@ export default function RequestDetailsScreen() {
     );
   }
 
-  // CHANGED — 'requested' → 'pending' throughout.
   const alreadyAccepted = request.status !== 'pending';
-  const isOwnRequest = request.requester.id === CURRENT_USER.id;
-  // Only meaningful while still pending — same fix as RequestCard, so an
-  // already-accepted/completed request never wrongly shows "expired."
+  // CHANGED — CURRENT_USER.id -> real user id.
+  const isOwnRequest = request.requester.id === user?.id;
   const expired = request.status === 'pending' && isExpired(request.expiresAt);
-
   const categoryLabel = CATEGORIES.find((c) => c.key === request.category)?.label ?? 'Other';
 
-  function handleAccept() {
-    acceptRequest(request.id);
+  async function handleAccept() {
+    setActionError('');
+    setAccepting(true);
+    const result = await acceptRequest(request.id);
+    setAccepting(false);
+    if (!result.success) {
+      setActionError(result.error ?? 'Could not accept request.');
+      return;
+    }
     router.replace(routes.orderStatus(request.id));
   }
 
-  function handleCancel() {
-    cancelRequest(request.id);
+  async function handleCancel() {
+    setActionError('');
+    setCancelling(true);
+    const result = await cancelRequest(request.id);
+    setCancelling(false);
+    if (!result.success) {
+      setActionError(result.error ?? 'Could not cancel request.');
+      return;
+    }
     router.back();
   }
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScreenHeader title="Request details" />
-
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.hero}>
           <View style={styles.heroTop}>
-            <View style={styles.emojiBox}>
-              <Text style={styles.emoji}>{request.emoji}</Text>
-            </View>
+            <View style={styles.emojiBox}><Text style={styles.emoji}>{request.emoji}</Text></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.itemName}>{request.itemName}</Text>
-              <View style={styles.categoryTag}>
-                <Text style={styles.categoryTagText}>{categoryLabel}</Text>
-              </View>
+              <View style={styles.categoryTag}><Text style={styles.categoryTagText}>{categoryLabel}</Text></View>
               {!!request.shop && <Text style={styles.shop}>{request.shop}</Text>}
             </View>
           </View>
@@ -83,27 +96,19 @@ export default function RequestDetailsScreen() {
         {request.status === 'pending' && (
           <View style={styles.expiryRow}>
             <Ionicons name="time-outline" size={15} color={colors.muted} />
-            <Text style={styles.expiryText}>
-              Expires in {countdown} · Accept only if you're already going out
-            </Text>
+            <Text style={styles.expiryText}>Expires in {countdown} · Accept only if you're already going out</Text>
           </View>
         )}
 
         {!!request.notes && (
           <View style={styles.infoBlock}>
-            <View style={styles.infoBlockHeader}>
-              <Ionicons name="chatbox-outline" size={16} color={colors.green} />
-              <Text style={styles.infoBlockTitle}>Notes</Text>
-            </View>
+            <View style={styles.infoBlockHeader}><Ionicons name="chatbox-outline" size={16} color={colors.green} /><Text style={styles.infoBlockTitle}>Notes</Text></View>
             <Text style={styles.infoBlockText}>{request.notes}</Text>
           </View>
         )}
 
         <View style={styles.infoBlock}>
-          <View style={styles.infoBlockHeader}>
-            <Ionicons name="location-outline" size={16} color={colors.green} />
-            <Text style={styles.infoBlockTitle}>Delivery location</Text>
-          </View>
+          <View style={styles.infoBlockHeader}><Ionicons name="location-outline" size={16} color={colors.green} /><Text style={styles.infoBlockTitle}>Delivery location</Text></View>
           <Text style={styles.infoBlockText}>{request.deliveryLocation}</Text>
         </View>
 
@@ -111,30 +116,24 @@ export default function RequestDetailsScreen() {
           <Avatar initials={request.requester.initials} size={39} backgroundColor="#f6d8ca" textColor="#a04d2d" />
           <View style={{ flex: 1 }}>
             <Text style={styles.requesterName}>{request.requester.name}</Text>
-            <Text style={styles.requesterSub}>
-              ★ {request.requester.rating} · {request.requester.completedRequests} requests
-              completed
-            </Text>
+            <Text style={styles.requesterSub}>★ {request.requester.rating.toFixed(1)} · {request.requester.completedRequests} ratings</Text>
           </View>
           <Ionicons name="shield-checkmark" size={19} color={colors.green} />
         </View>
 
-        {/* ── Action area — depends on WHO you are and WHAT status it's in ── */}
+        {!!actionError && <Text style={styles.errorText}>{actionError}</Text>}
+
         {isOwnRequest ? (
           request.status === 'pending' ? (
-            // Your own request, nobody's accepted yet → you can still cancel.
-            <Pressable style={styles.btnDanger} onPress={handleCancel}>
-              <Text style={styles.btnDangerText}>Cancel this request</Text>
+            <Pressable style={styles.btnDanger} onPress={handleCancel} disabled={cancelling}>
+              <Text style={styles.btnDangerText}>{cancelling ? 'Cancelling...' : 'Cancel this request'}</Text>
             </Pressable>
           ) : request.status === 'cancelled' ? (
-            // You already cancelled it — just show that fact, nothing to do.
             <View style={styles.cancelledNotice}>
               <Ionicons name="close-circle" size={16} color="#c14b30" />
               <Text style={styles.cancelledNoticeText}>You cancelled this request.</Text>
             </View>
           ) : (
-            // Someone already accepted it — cancelling is no longer allowed.
-            // Send them to Order Status to track it instead.
             <Pressable style={styles.btn} onPress={() => router.push(routes.orderStatus(request.id))}>
               <Text style={styles.btnText}>View order status</Text>
             </Pressable>
@@ -146,18 +145,16 @@ export default function RequestDetailsScreen() {
         ) : (
           <>
             <Pressable
-              style={[styles.btn, alreadyAccepted && styles.btnDisabled]}
+              style={[styles.btn, (alreadyAccepted || accepting) && styles.btnDisabled]}
               onPress={handleAccept}
-              disabled={alreadyAccepted}
+              disabled={alreadyAccepted || accepting}
             >
               <Text style={styles.btnText}>
-                {alreadyAccepted ? 'Already accepted' : `Accept request · Earn ₹${request.deliveryFee}`}
+                {accepting ? 'Accepting...' : alreadyAccepted ? 'Already accepted' : `Accept request · Earn ₹${request.deliveryFee}`}
               </Text>
             </Pressable>
             <Pressable style={styles.btnOutline} onPress={() => router.push(routes.chat(request.id))}>
-              <Text style={styles.btnOutlineText}>
-                Ask {request.requester.name.split(' ')[0]} a question
-              </Text>
+              <Text style={styles.btnOutlineText}>Ask {request.requester.name.split(' ')[0]} a question</Text>
             </Pressable>
           </>
         )}
@@ -194,6 +191,7 @@ const styles = StyleSheet.create({
   requester: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 15, marginTop: 12, backgroundColor: '#f4f8f4', borderRadius: 15 },
   requesterName: { fontSize: 13, fontWeight: '700', color: colors.ink },
   requesterSub: { color: colors.muted, fontSize: 11, marginTop: 3 },
+  errorText: { color: '#c14b30', fontSize: 12, fontWeight: '600', marginTop: 14, textAlign: 'center' },
   btn: { backgroundColor: colors.green, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
   btnDisabled: { opacity: 0.5 },
   btnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
