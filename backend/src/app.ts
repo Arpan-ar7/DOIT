@@ -18,7 +18,7 @@ import { ratingsRouter } from './modules/ratings/ratings.routes.js';
 import { reportsRouter } from './modules/reports/reports.routes.js';
 import { transactionsRouter } from './modules/transactions/transactions.routes.js';
 import { messagesRouter } from './modules/messages/messages.routes.js';
-
+import { notificationsRouter } from './modules/notifications/notifications.routes.js';
 
 
 
@@ -55,6 +55,7 @@ app.use('/api/v1/transactions', transactionsRouter);
 
 app.use('/api/v1/requests', messagesRouter);
 
+app.use('/api/v1/notifications', notificationsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

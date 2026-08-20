@@ -1,14 +1,14 @@
 import { supabaseClient } from '../../config/supabaseClient.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { logger } from '../../utils/logger.js';
+import { sendPush } from '../notifications/notifications.service.js';
 import type { CreateRequestInput, RequestRecord, RequestStatus } from './requests.type.js';
 
 /**
  * NOTE ON AUTHORIZATION:
  * This service uses the service-role Supabase client, which BYPASSES RLS.
  * That means every ownership/participant check that RLS would normally
- * enforce (e.g. "only the requester can cancel") must be done explicitly
- * in this file's code. Never assume the database is protecting you here.
+ * enforce must be done explicitly in this file's code.
  */
 
 async function getUserCollegeId(userId: string): Promise<string> {
@@ -23,6 +23,19 @@ async function getUserCollegeId(userId: string): Promise<string> {
   }
 
   return data.college_id as string;
+}
+
+/**
+ * Wraps every notification call so a notification-logging failure can
+ * NEVER break the actual request action (accept/cancel/complete) that
+ * triggered it. Notifications are a side-effect, not a dependency.
+ */
+async function notifySafely(fn: () => Promise<unknown>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    logger.error({ err }, 'Notification failed (non-blocking)');
+  }
 }
 
 export async function createRequest(
@@ -101,7 +114,7 @@ export async function acceptRequest(
     .from('requests')
     .update({ status: 'accepted', deliverer_id: delivererId })
     .eq('id', requestId)
-    .eq('status', 'pending') // atomic race-condition guard
+    .eq('status', 'pending')
     .select()
     .single();
 
@@ -109,7 +122,20 @@ export async function acceptRequest(
     throw new AppError(409, 'This request has already been accepted by someone else');
   }
 
-  return data as RequestRecord;
+  const updated = data as RequestRecord;
+
+  // Notify the requester that someone accepted their request.
+  await notifySafely(() =>
+    sendPush(
+      updated.requester_id,
+      'request_accepted',
+      'Your request was accepted!',
+      `Someone is bringing you: ${updated.item_name}`,
+      updated.id
+    )
+  );
+
+  return updated;
 }
 
 export async function cancelRequest(
@@ -142,7 +168,23 @@ export async function cancelRequest(
     throw new AppError(500, 'Failed to cancel request');
   }
 
-  return data as RequestRecord;
+  const updated = data as RequestRecord;
+
+  // Notify whichever participant DIDN'T do the cancelling.
+  const otherPartyId = updated.requester_id === userId ? updated.deliverer_id : updated.requester_id;
+  if (otherPartyId) {
+    await notifySafely(() =>
+      sendPush(
+        otherPartyId,
+        'request_cancelled',
+        'A request was cancelled',
+        `"${updated.item_name}" was cancelled${reason ? `: ${reason}` : ''}`,
+        updated.id
+      )
+    );
+  }
+
+  return updated;
 }
 
 export async function confirmCompletion(
@@ -172,7 +214,23 @@ export async function confirmCompletion(
     throw new AppError(500, 'Failed to mark request complete');
   }
 
-  return data as RequestRecord;
+  const updated = data as RequestRecord;
+
+  // Notify whichever participant DIDN'T mark it complete.
+  const otherPartyId = updated.requester_id === userId ? updated.deliverer_id : updated.requester_id;
+  if (otherPartyId) {
+    await notifySafely(() =>
+      sendPush(
+        otherPartyId,
+        'item_delivered',
+        'Delivery confirmed',
+        `"${updated.item_name}" was marked as delivered`,
+        updated.id
+      )
+    );
+  }
+
+  return updated;
 }
 
 export async function getUserRequests(

@@ -19,7 +19,7 @@ export async function getForUser(
 ): Promise<void> {
   try {
     const { userId } = req.params;
-    if (!userId) throw new AppError(400, 'Missing userId');
+    if (!userId || Array.isArray(userId)) throw new AppError(400, 'Missing userId');
     const result = await ratingsService.getRatingsForUser(userId);
     res.status(200).json({ data: result });
   } catch (err) {

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>FCM Test Token Generator</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    textarea { width: 100%; height: 120px; margin-top: 20px; font-family: monospace; font-size: 12px; }
+    #status { margin-top: 15px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h2>FCM Test Token Generator</h2>
+  <p>Click the button, allow notifications when your browser asks, then copy the token below.</p>
+  <button id="getTokenBtn">Get FCM Token</button>
+  <div id="status"></div>
+  <textarea id="tokenOutput" readonly placeholder="Your token will appear here..."></textarea>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging.js";
+
+    // PASTE your firebaseConfig object from Firebase Console > Project Settings > General > Your apps
+    const firebaseConfig = {
+    apiKey: "AIzaSyBiA5kDMENLX62T5GANg43oYV0XAlfYPiU",
+    authDomain: "unicart-campus-dilivery.firebaseapp.com",
+    projectId: "unicart-campus-dilivery",
+    storageBucket: "unicart-campus-dilivery.firebasestorage.app",
+    messagingSenderId: "688052407794",
+    appId: "1:688052407794:web:c5c14ba485f5e3ce6d2f6b",
+    measurementId: "G-1B6NW54WX2"
+
+  };
+
+    // PASTE your VAPID key from Cloud Messaging > Web Push certificates
+    const VAPID_KEY = "BF17v0X1TlXF0oHDrPwh9YhElgJge33bghWhpU_xUZSnDdzLwPN-U2trc-STxbJV3q-7tpf58j2vvJpHCpDR81w";
+
+    const app = initializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+
+    // Handles pushes that arrive while THIS TAB IS FOCUSED — the service
+    // worker's onBackgroundMessage only fires when the tab is minimized
+    // or not focused. Without this, foreground pushes arrive silently.
+    onMessage(messaging, (payload) => {
+      console.log("Foreground message received:", payload);
+      const { title, body } = payload.notification || {};
+      new Notification(title || "New notification", { body: body || "" });
+    });
+
+    document.getElementById("getTokenBtn").addEventListener("click", async () => {
+      const statusEl = document.getElementById("status");
+      const tokenEl = document.getElementById("tokenOutput");
+
+      try {
+        statusEl.textContent = "Requesting permission...";
+        const permission = await Notification.requestPermission();
+
+        if (permission !== "granted") {
+          statusEl.textContent = "Permission denied. Enable notifications for this site and try again.";
+          return;
+        }
+
+        statusEl.textContent = "Registering service worker...";
+        const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+
+        statusEl.textContent = "Getting token...";
+        const token = await getToken(messaging, {
+          vapidKey: VAPID_KEY,
+          serviceWorkerRegistration: registration,
+        });
+
+        if (token) {
+          tokenEl.value = token;
+          statusEl.textContent = "Success! Copy the token below.";
+        } else {
+          statusEl.textContent = "No token available. Check console for errors.";
+        }
+      } catch (err) {
+        statusEl.textContent = "Error: " + err.message;
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>

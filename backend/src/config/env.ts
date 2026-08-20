@@ -28,6 +28,10 @@ function requiredEnv(name: string): string {
 export const env = {
   SUPABASE_URL: requiredEnv('SUPABASE_URL'),
   SUPABASE_SERVICE_ROLE_KEY: requiredEnv('SUPABASE_SERVICE_ROLE_KEY'),
+  SUPABASE_JWT_SECRET: requiredEnv('SUPABASE_JWT_SECRET'),
+  FIREBASE_PROJECT_ID: requiredEnv('FIREBASE_PROJECT_ID'),
+  FIREBASE_CLIENT_EMAIL: requiredEnv('FIREBASE_CLIENT_EMAIL'),
+  FIREBASE_PRIVATE_KEY: requiredEnv('FIREBASE_PRIVATE_KEY'),
   NODE_ENV: process.env.NODE_ENV ?? 'development',
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'debug',
 } as const;
