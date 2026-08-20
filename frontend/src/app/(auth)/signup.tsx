@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, TextInput, StyleSheet, Pressable, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,8 +12,6 @@ export default function SignupScreen() {
   const router = useRouter();
   const { signup } = useAuth();
 
-  // ── Form fields, matching exactly what was asked for: ──
-  // Name, Email, GR No, Password, Confirm Password, Phone.
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [grNo, setGrNo] = useState('');
@@ -29,20 +19,14 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Live feedback under the GR No field as the person types — same pattern
-  // we used for the username availability check in Settings.
   const trimmedGrNo = grNo.trim();
   const grNoFormatOk = trimmedGrNo.length === 0 || isGrNoFormatValid(trimmedGrNo);
 
   async function handleSignup() {
     setError('');
-
-    // Checks that only make sense at the screen level (not inside
-    // AuthContext, since AuthContext doesn't know about "confirm password").
     if (!grNoFormatOk) {
       setError('GR No must be exactly 6 digits.');
       return;
@@ -57,23 +41,23 @@ export default function SignupScreen() {
     }
 
     setLoading(true);
-    // Everything else (email format, GR No uniqueness, phone format) is
-    // validated inside signup() itself, since that's shared logic that
-    // should behave the same regardless of which screen calls it.
     const result = await signup(name, email, grNo, phone, password);
     setLoading(false);
 
     if (!result.success) {
       setError(result.error ?? 'Something went wrong. Try again.');
     }
-    // On success, the root layout's AuthGate automatically redirects into
-    // the app — no manual navigation needed here.
   }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {/* CHANGED — same fix as login.tsx: 'height' on Android instead of undefined. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.logoBox}>
             <Ionicons name="bicycle" size={30} color="#fff" />
           </View>
@@ -82,12 +66,7 @@ export default function SignupScreen() {
 
           <View style={styles.formCard}>
             <Text style={styles.label}>Full name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Aarav Sharma"
-              value={name}
-              onChangeText={setName}
-            />
+            <TextInput style={styles.input} placeholder="e.g. Aarav Sharma" value={name} onChangeText={setName} />
 
             <Text style={styles.label}>Email</Text>
             <TextInput
@@ -166,56 +145,26 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
-  content: { flexGrow: 1, padding: spacing.xl, justifyContent: 'center' },
+  // CHANGED — same reasoning as login.tsx: top-anchored + scrollable, no
+  // vertical centering fighting with the keyboard.
+  content: { flexGrow: 1, padding: spacing.xl, paddingTop: 60 },
   logoBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: colors.green,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
+    width: 56, height: 56, borderRadius: 18, backgroundColor: colors.green,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 18,
   },
   title: { fontSize: 26, fontWeight: '700', color: colors.ink, marginBottom: 6 },
   subtitle: { fontSize: 13, color: colors.muted, marginBottom: 26 },
-  formCard: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.lg,
-    padding: 18,
-  },
+  formCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 18 },
   label: { fontSize: 12, color: '#516164', fontWeight: '700', marginTop: 15, marginBottom: 7 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e2e7e0',
-    backgroundColor: '#fafbf8',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: colors.ink,
-  },
+  input: { borderWidth: 1, borderColor: '#e2e7e0', backgroundColor: '#fafbf8', borderRadius: 12, padding: 12, fontSize: 14, color: colors.ink },
   hintTextError: { color: '#c14b30', fontSize: 11, marginTop: 5, fontWeight: '600' },
-  passwordRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e7e0',
-    backgroundColor: '#fafbf8',
-    borderRadius: 12,
-  },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e2e7e0', backgroundColor: '#fafbf8', borderRadius: 12 },
   passwordInput: { flex: 1, padding: 12, fontSize: 14, color: colors.ink },
   eyeBtn: { paddingHorizontal: 12 },
   errorText: { color: '#c14b30', fontSize: 12, fontWeight: '600', marginTop: 12 },
-  btn: {
-    backgroundColor: colors.green,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 20,
-  },
+  btn: { backgroundColor: colors.green, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 20 },
   btnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 22 },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 22, marginBottom: 20 },
   switchText: { color: colors.muted, fontSize: 13 },
   switchLink: { color: colors.green, fontSize: 13, fontWeight: '700' },
 });

@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, SafeAreaView, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
-import { RequestStatus, CURRENT_USER } from '../../constants/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { RequestStatus } from '../../constants/mockData';
 import { routes } from '../../constants/routes';
 import ScreenHeader from '../../components/ScreenHeader';
 import Avatar from '../../components/Avatar';
@@ -12,33 +13,32 @@ import Avatar from '../../components/Avatar';
 const STEPS: { key: RequestStatus; label: string; icon: keyof typeof Ionicons.glyphMap; doneCopy: string; pendingCopy: string }[] = [
   { key: 'pending', label: 'Pending', icon: 'time-outline', doneCopy: 'Request was posted', pendingCopy: 'Waiting to be posted' },
   { key: 'accepted', label: 'Accepted', icon: 'checkmark', doneCopy: 'Someone accepted this request', pendingCopy: 'Waiting for someone to accept' },
-  { key: 'in_progress', label: 'In Progress', icon: 'bicycle-outline', doneCopy: 'Delivery is in progress', pendingCopy: "Delivery partner is getting your item" },
+  { key: 'in_progress', label: 'In Progress', icon: 'bicycle-outline', doneCopy: 'Delivery is in progress', pendingCopy: 'Delivery partner is getting your item' },
   { key: 'completed', label: 'Completed', icon: 'sparkles-outline', doneCopy: 'Delivered and completed', pendingCopy: 'Payment and rating confirmed' },
 ];
-
-const NEXT_ACTION_LABEL: Partial<Record<RequestStatus, string>> = {
-  accepted: 'Start delivery',
-  in_progress: 'Mark as completed',
-};
 
 export default function OrderStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const { getRequestById, advanceStatus, rateRequest } = useRequests();
   const request = getRequestById(id);
+
+  const [completing, setCompleting] = useState(false);
+  const [rating, setRating] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   if (!request) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>This order no longer exists.</Text>
-        </View>
+        <View style={styles.center}><Text style={styles.emptyText}>This order no longer exists.</Text></View>
       </SafeAreaView>
     );
   }
 
-  const isDeliveryPartner = request.accepterId === CURRENT_USER.id;
-  const isRequester = request.requester.id === CURRENT_USER.id;
+  // CHANGED — CURRENT_USER.id -> real user id.
+  const isDeliveryPartner = request.accepterId === user?.id;
+  const isRequester = request.requester.id === user?.id;
 
   if (request.status === 'cancelled') {
     return (
@@ -54,70 +54,51 @@ export default function OrderStatusScreen() {
 
   const currentIndex = STEPS.findIndex((s) => s.key === request.status);
   const total = request.itemBudget + request.deliveryFee;
-  const nextActionLabel = isDeliveryPartner ? NEXT_ACTION_LABEL[request.status] : undefined;
-
-  // Show the "who's delivering this" card only if: you're the one who
-  // posted it, AND someone has actually accepted (request.accepter exists).
-  // Before acceptance there's nobody to show yet.
+  // CHANGED — only one action exists now: jump straight to completed.
+  // No "Start delivery" button, since the backend has no in-between step.
+  const canComplete = isDeliveryPartner && (request.status === 'accepted' || request.status === 'in_progress');
   const showAccepterCard = isRequester && !!request.accepter;
+
+  async function handleComplete() {
+    setActionError('');
+    setCompleting(true);
+    const result = await advanceStatus(request.id);
+    setCompleting(false);
+    if (!result.success) setActionError(result.error ?? 'Could not mark as completed.');
+  }
+
+  async function handleRate(score: number) {
+    if (rating) return;
+    setActionError('');
+    setRating(true);
+    const result = await rateRequest(request.id, score);
+    setRating(false);
+    if (!result.success) setActionError(result.error ?? 'Could not submit rating.');
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScreenHeader
-        title="Order status"
-        rightIcon="chatbubble-outline"
-        onRightPress={() => router.push(routes.chat(request.id))}
-      />
-
+      <ScreenHeader title="Order status" rightIcon="chatbubble-outline" onRightPress={() => router.push(routes.chat(request.id))} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.summaryCard}>
-          <View style={styles.emojiBox}>
-            <Text style={styles.emoji}>{request.emoji}</Text>
-          </View>
+          <View style={styles.emojiBox}><Text style={styles.emoji}>{request.emoji}</Text></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.itemName}>{request.itemName}</Text>
-            <Text style={styles.subtext}>
-              For {request.requester.name} · Total ₹{total}
-            </Text>
+            <Text style={styles.subtext}>For {request.requester.name} · Total ₹{total}</Text>
           </View>
-          <View style={styles.activeTag}>
-            <Text style={styles.activeTagText}>{request.status === 'completed' ? 'Done' : 'Active'}</Text>
-          </View>
+          <View style={styles.activeTag}><Text style={styles.activeTagText}>{request.status === 'completed' ? 'Done' : 'Active'}</Text></View>
         </View>
 
-        {/* ── NEW — Delivery partner reveal ─────────────────────────────
-            Only the requester sees this, only once someone's accepted. */}
+        {/* Delivery partner reveal — phone-sharing block removed entirely
+            per your last message; just name/rating now. */}
         {showAccepterCard && request.accepter && (
           <View style={styles.accepterCard}>
-            <View style={styles.accepterHeader}>
-              <Avatar
-                initials={request.accepter.initials}
-                backgroundColor="#d4e8f8"
-                textColor="#236b95"
-                size={44}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.accepterName}>{request.accepter.name}</Text>
-                <Text style={styles.accepterSub}>
-                  ★ {request.accepter.rating} · {request.accepter.completedRequests} deliveries
-                </Text>
-              </View>
-              <Ionicons name="shield-checkmark" size={18} color={colors.green} />
+            <Avatar initials={request.accepter.initials} backgroundColor="#d4e8f8" textColor="#236b95" size={44} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.accepterName}>{request.accepter.name}</Text>
+              <Text style={styles.accepterSub}>★ {request.accepter.rating.toFixed(1)} · {request.accepter.completedRequests} deliveries</Text>
             </View>
-
-            {/* Phone number is GATED behind the accepter's own "Share phone
-                number" preference (Settings) — never shown if they opted out. */}
-            {request.accepter.sharePhone ? (
-              <View style={styles.phoneRow}>
-                <Ionicons name="call-outline" size={14} color={colors.green} />
-                <Text style={styles.phoneText}>{request.accepter.phone}</Text>
-              </View>
-            ) : (
-              <View style={styles.phoneRow}>
-                <Ionicons name="lock-closed-outline" size={14} color={colors.muted} />
-                <Text style={styles.phoneHiddenText}>Phone number not shared — message them in chat instead.</Text>
-              </View>
-            )}
+            <Ionicons name="shield-checkmark" size={18} color={colors.green} />
           </View>
         )}
 
@@ -127,45 +108,35 @@ export default function OrderStatusScreen() {
             const isCurrent = index === currentIndex;
             return (
               <View key={step.key} style={[styles.stepRow, index === STEPS.length - 1 && { paddingBottom: 0 }]}>
-                {index !== STEPS.length - 1 && (
-                  <View style={[styles.connector, isDone && styles.connectorDone]} />
-                )}
+                {index !== STEPS.length - 1 && <View style={[styles.connector, isDone && styles.connectorDone]} />}
                 <View style={[styles.dot, isDone && styles.dotDone, isCurrent && styles.dotCurrent]}>
-                  <Ionicons
-                    name={isDone ? 'checkmark' : step.icon}
-                    size={15}
-                    color={isDone || isCurrent ? '#fff' : '#95a29a'}
-                  />
+                  <Ionicons name={isDone ? 'checkmark' : step.icon} size={15} color={isDone || isCurrent ? '#fff' : '#95a29a'} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.stepLabel}>{step.label}</Text>
-                  <Text style={[styles.stepCopy, isCurrent && styles.stepCopyCurrent]}>
-                    {isDone || isCurrent ? step.doneCopy : step.pendingCopy}
-                  </Text>
+                  <Text style={[styles.stepCopy, isCurrent && styles.stepCopyCurrent]}>{isDone || isCurrent ? step.doneCopy : step.pendingCopy}</Text>
                 </View>
               </View>
             );
           })}
         </View>
 
-        {nextActionLabel && (
-          <Pressable style={styles.btn} onPress={() => advanceStatus(request.id)}>
-            <Text style={styles.btnText}>{nextActionLabel}</Text>
+        {!!actionError && <Text style={styles.errorText}>{actionError}</Text>}
+
+        {canComplete && (
+          <Pressable style={styles.btn} onPress={handleComplete} disabled={completing}>
+            <Text style={styles.btnText}>{completing ? 'Marking as completed...' : 'Mark as completed'}</Text>
           </Pressable>
         )}
 
         {isRequester && !isDeliveryPartner && request.status !== 'completed' && (
-          <Text style={styles.trackingNote}>
-            You'll see this update automatically as your delivery partner makes progress.
-          </Text>
+          <Text style={styles.trackingNote}>You'll see this update automatically as your delivery partner makes progress.</Text>
         )}
 
         {request.status === 'completed' && (
           <View style={styles.doneBanner}>
             <Ionicons name="sparkles" size={18} color={colors.green} />
-            <Text style={styles.doneBannerText}>
-              Delivery complete — ₹{request.deliveryFee} added to your earnings.
-            </Text>
+            <Text style={styles.doneBannerText}>Delivery complete — ₹{request.deliveryFee} added to your earnings.</Text>
           </View>
         )}
 
@@ -174,7 +145,7 @@ export default function OrderStatusScreen() {
             <Text style={styles.rateTitle}>Rate this delivery</Text>
             <View style={styles.starRow}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <Pressable key={n} onPress={() => rateRequest(request.id, n)}>
+                <Pressable key={n} onPress={() => handleRate(n)} disabled={rating}>
                   <Ionicons name="star-outline" size={26} color={colors.orange} />
                 </Pressable>
               ))}
@@ -201,14 +172,9 @@ const styles = StyleSheet.create({
   subtext: { fontSize: 12, color: colors.muted, marginTop: 3 },
   activeTag: { backgroundColor: colors.mint, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8 },
   activeTagText: { fontSize: 11, fontWeight: '700', color: colors.green },
-  // Accepter reveal card
-  accepterCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 15, marginTop: 12 },
-  accepterHeader: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  accepterCard: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 15, marginTop: 12 },
   accepterName: { fontSize: 14, fontWeight: '700', color: colors.ink },
   accepterSub: { fontSize: 11, color: colors.muted, marginTop: 3 },
-  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.line },
-  phoneText: { fontSize: 13, fontWeight: '700', color: colors.green },
-  phoneHiddenText: { fontSize: 11, color: colors.muted, flex: 1 },
   timelineCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: radius.xl, padding: 18, marginTop: 18 },
   stepRow: { flexDirection: 'row', gap: 13, paddingBottom: 22, position: 'relative' },
   connector: { position: 'absolute', left: 15, top: 34, bottom: 0, width: 2, backgroundColor: '#e1e8e2' },
@@ -219,6 +185,7 @@ const styles = StyleSheet.create({
   stepLabel: { fontSize: 13, fontWeight: '700', color: colors.ink, marginBottom: 3 },
   stepCopy: { fontSize: 11, color: colors.muted },
   stepCopyCurrent: { color: colors.green, fontWeight: '700' },
+  errorText: { color: '#c14b30', fontSize: 12, fontWeight: '600', marginTop: 14, textAlign: 'center' },
   btn: { backgroundColor: colors.orange, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
   btnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   trackingNote: { fontSize: 12, color: colors.muted, textAlign: 'center', marginTop: 16, lineHeight: 17 },

@@ -1,5 +1,5 @@
 import { ChatMessage } from '../context/RequestsContext';
-import { DeliveryRequest, CURRENT_USER } from '../constants/mockData';
+import { DeliveryRequest } from '../constants/mockData';
 
 export type Conversation = {
   request: DeliveryRequest;
@@ -7,13 +7,16 @@ export type Conversation = {
   unread: boolean;
 };
 
+// CHANGED — currentUserId is now passed in explicitly instead of imported
+// from mock data, since it has to be the REAL logged-in user's Supabase id.
 export function getConversations(
   requests: DeliveryRequest[],
   messagesByRequest: Record<string, ChatMessage[]>,
   readStatus: Record<string, number>,
+  currentUserId: string,
 ): Conversation[] {
   return requests
-    .filter((r) => r.status !== 'requested' && r.accepterId === CURRENT_USER.id)
+    .filter((r) => r.status !== 'pending' && r.accepterId === currentUserId)
     .map((r) => {
       const messages = messagesByRequest[r.id] ?? [];
       const lastMessage = messages[messages.length - 1];

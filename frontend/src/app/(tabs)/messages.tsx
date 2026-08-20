@@ -4,14 +4,16 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
+import { useAuth } from '../../context/AuthContext';
 import { getConversations } from '../../utils/conversations';
 import { routes } from '../../constants/routes';
 import Avatar from '../../components/Avatar';
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { requests, messagesByRequest, readStatus } = useRequests();
-  const conversations = getConversations(requests, messagesByRequest, readStatus);
+  const conversations = getConversations(requests, messagesByRequest, readStatus, user?.id ?? '');
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -19,25 +21,15 @@ export default function MessagesScreen() {
         data={conversations}
         keyExtractor={(item) => item.request.id}
         contentContainerStyle={styles.content}
-        ListHeaderComponent={
-          <View style={styles.top}>
-            <Text style={styles.h2}>Messages</Text>
-          </View>
-        }
+        ListHeaderComponent={<View style={styles.top}><Text style={styles.h2}>Messages</Text></View>}
         renderItem={({ item }) => (
           <Pressable style={styles.row} onPress={() => router.push(routes.chat(item.request.id))}>
-            <Avatar
-              initials={item.request.requester.initials}
-              backgroundColor="#f7d5c7"
-              textColor="#994327"
-            />
+            <Avatar initials={item.request.requester.initials} backgroundColor="#f7d5c7" textColor="#994327" />
             <View style={{ flex: 1 }}>
               <View style={styles.rowTop}>
                 <View style={styles.nameRow}>
                   {item.unread && <View style={styles.unreadDot} />}
-                  <Text style={styles.name} numberOfLines={1}>
-                    {item.request.requester.name}
-                  </Text>
+                  <Text style={styles.name} numberOfLines={1}>{item.request.requester.name}</Text>
                 </View>
                 {item.lastMessage && <Text style={styles.time}>{item.lastMessage.time}</Text>}
               </View>
@@ -54,9 +46,7 @@ export default function MessagesScreen() {
           <View style={styles.empty}>
             <Ionicons name="chatbubbles-outline" size={32} color={colors.muted} />
             <Text style={styles.emptyTitle}>No conversations yet</Text>
-            <Text style={styles.emptySub}>
-              Accept a request from Home to start chatting with a requester.
-            </Text>
+            <Text style={styles.emptySub}>Accept a request from Home to start chatting with a requester.</Text>
           </View>
         }
       />
@@ -69,17 +59,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.xl, paddingBottom: 40, flexGrow: 1 },
   top: { paddingTop: spacing.lg, paddingBottom: spacing.md },
   h2: { fontSize: 22, fontWeight: '700', color: colors.ink },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 16,
-    padding: 13,
-    marginBottom: 9,
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 13, marginBottom: 9 },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.orange },

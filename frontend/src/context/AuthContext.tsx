@@ -1,26 +1,17 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '../lib/supabase';
 import { isEmailFormatValid, isGrNoFormatValid, isPhoneFormatValid } from '../utils/validation';
 import { isUsernameFormatValid, isUsernameTaken } from '../utils/username';
 
 export type AuthUser = {
+  id: string; // real Supabase user id — needed later for creating requests
   name: string;
   email: string;
   grNo: string;
   phone: string;
-  username: string;
-  hostel: string;
+  username: string; // local-only, see note above
+  hostel: string; // local-only, see note above
   photoUri: string | null;
-  sharesPhone: boolean; // NEW — controls whether your phone shows to whoever
-  // accepts your request, AND whether it shows when you accept someone
-  // else's. One preference, both directions — kept simple on purpose.
-};
-
-type RegisteredUser = {
-  name: string;
-  email: string;
-  grNo: string;
-  phone: string;
-  password: string;
 };
 
 type ProfileUpdates = {
@@ -28,11 +19,11 @@ type ProfileUpdates = {
   username?: string;
   hostel?: string;
   photoUri?: string | null;
-  sharesPhone?: boolean; // NEW
 };
 
 type AuthContextValue = {
   isAuthenticated: boolean;
+  isLoading: boolean; // true while checking for an existing session on app start
   user: AuthUser | null;
   login: (email: string, grNo: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (
@@ -42,8 +33,8 @@ type AuthContextValue = {
     phone: string,
     password: string,
   ) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
-  updateProfile: (updates: ProfileUpdates) => { success: boolean; error?: string };
+  logout: () => Promise<void>;
+  updateProfile: (updates: ProfileUpdates) => Promise<{ success: boolean; error?: string }>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -53,18 +44,58 @@ function deriveUsername(name: string) {
   return slug.slice(0, 20) || 'student';
 }
 
-const SEEDED_DEMO_USER: RegisteredUser = {
-  name: 'Aarav Sharma',
-  email: 'aarav@college.edu',
-  grNo: '100234',
-  phone: '9876543210',
-  password: 'password123',
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([SEEDED_DEMO_USER]);
+
+  function setUserFromProfile(profile: any) {
+    setUser({
+      id: profile.id,
+      name: profile.full_name,
+      email: profile.email,
+      grNo: String(profile.gr_number ?? ''),
+      phone: profile.phone_number ?? '',
+      username: deriveUsername(profile.full_name), // not persisted, see note
+      hostel: '', // not persisted, see note
+      photoUri: profile.profile_picture ?? null,
+    });
+  }
+
+  async function loadProfile(userId: string) {
+    const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (error || !profile) {
+      // Profile row missing/unreadable — don't leave the app half-logged-in.
+      await supabase.auth.signOut();
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsLoading(false);
+      return;
+    }
+    setUserFromProfile(profile);
+    setIsAuthenticated(true);
+    setIsLoading(false);
+  }
+
+  // On app start: check if a session already exists (persisted via
+  // AsyncStorage from a previous login), and keep listening for changes
+  // (login/logout from anywhere in the app updates this automatically).
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) loadProfile(data.session.user.id);
+      else setIsLoading(false);
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) loadProfile(session.user.id);
+      else {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   async function signup(name: string, email: string, grNo: string, phone: string, password: string) {
     const trimmedEmail = email.trim().toLowerCase();
@@ -76,32 +107,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isPhoneFormatValid(phone)) return { success: false, error: 'Enter a valid 10-digit phone number.' };
     if (password.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
 
-    const grNoTaken = registeredUsers.some((u) => u.grNo === trimmedGrNo);
-    if (grNoTaken) {
-      return { success: false, error: 'This GR No is already registered. Log in instead.' };
+    // Step 1 — real Supabase login credentials.
+    const { data, error } = await supabase.auth.signUp({ email: trimmedEmail, password });
+    if (error) return { success: false, error: error.message };
+    if (!data.user) return { success: false, error: 'Signup failed. Try again.' };
+
+    if (!data.session) {
+      // "Confirm email" is ON in Supabase — see note above.
+      return {
+        success: false,
+        error: 'Account created, but email confirmation is required. Ask your backend dev to disable "Confirm email" in Supabase for now.',
+      };
     }
 
-    const newUser: RegisteredUser = {
-      name: name.trim(),
+    // Step 2 — matching profile row. gr_number is a real integer column.
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: data.user.id,
+      full_name: name.trim(),
       email: trimmedEmail,
-      grNo: trimmedGrNo,
-      phone: phone.trim(),
-      password,
-    };
-
-    setRegisteredUsers((prev) => [...prev, newUser]);
-
-    setUser({
-      name: newUser.name,
-      email: newUser.email,
-      grNo: newUser.grNo,
-      phone: newUser.phone,
-      username: deriveUsername(newUser.name),
-      hostel: '',
-      photoUri: null,
-      sharesPhone: false, // NEW — off by default, matches a privacy-safe default
+      phone_number: phone.trim(),
+      gr_number: Number(trimmedGrNo),
     });
-    setIsAuthenticated(true);
+
+    if (profileError) {
+      // 23505 = Postgres unique-constraint violation.
+      const message =
+        profileError.code === '23505'
+          ? 'This GR No, email, or phone number is already registered.'
+          : profileError.message;
+      return { success: false, error: message };
+    }
+
+    await loadProfile(data.user.id);
     return { success: true };
   }
 
@@ -113,44 +150,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Fill in every field to continue.' };
     }
 
-    const match = registeredUsers.find(
-      (u) => u.email === trimmedEmail && u.grNo === trimmedGrNo && u.password === password,
-    );
+    // Step 1 — Supabase only checks email + password.
+    const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
+    if (error || !data.user) {
+      return { success: false, error: 'Email or password is incorrect.' };
+    }
 
-    if (!match) {
+    // Step 2 — the "double verification": GR No has to match too.
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      await supabase.auth.signOut();
+      return { success: false, error: 'Could not find your profile. Contact support.' };
+    }
+
+    if (String(profile.gr_number) !== trimmedGrNo) {
+      await supabase.auth.signOut(); // password was right, GR No wasn't
       return { success: false, error: "Email, GR No, and password don't match any account." };
     }
 
-    setUser({
-      name: match.name,
-      email: match.email,
-      grNo: match.grNo,
-      phone: match.phone,
-      username: deriveUsername(match.name),
-      hostel: '',
-      photoUri: null,
-      sharesPhone: false, // NEW
-    });
+    setUserFromProfile(profile);
     setIsAuthenticated(true);
     return { success: true };
   }
 
-  function logout() {
+  async function logout() {
+    await supabase.auth.signOut();
     setUser(null);
     setIsAuthenticated(false);
   }
 
-  function updateProfile(updates: ProfileUpdates) {
+  async function updateProfile(updates: ProfileUpdates) {
     if (!user) return { success: false, error: 'Not logged in.' };
 
     let nextUsername = user.username;
     if (updates.username !== undefined) {
       const normalized = updates.username.trim().toLowerCase();
       if (!isUsernameFormatValid(normalized)) {
-        return {
-          success: false,
-          error: 'Username must be 3–20 characters: letters, numbers, and underscores only.',
-        };
+        return { success: false, error: 'Username must be 3–20 characters: letters, numbers, and underscores only.' };
       }
       if (isUsernameTaken(normalized, user.username)) {
         return { success: false, error: 'That username is already taken.' };
@@ -158,14 +199,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       nextUsername = normalized;
     }
 
-    // sharesPhone (and every other field) just flows through via ...updates —
-    // no special validation needed for a simple boolean toggle.
+    // Only 'name' has a real column (full_name) right now — push that to
+    // Supabase. username/hostel/photoUri stay local until the DB has
+    // matching columns/Storage.
+    if (updates.name !== undefined && updates.name.trim() !== user.name) {
+      const { error } = await supabase.from('profiles').update({ full_name: updates.name.trim() }).eq('id', user.id);
+      if (error) return { success: false, error: error.message };
+    }
+
     setUser({ ...user, ...updates, username: nextUsername });
     return { success: true };
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, signup, logout, updateProfile }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, signup, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
