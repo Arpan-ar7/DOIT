@@ -110,6 +110,17 @@ const get = <T>(path: string) => request<T>(path, { method: 'GET' });
 const post = <T>(path: string, body?: object) =>
   request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
 
+// requestsApi.ts (the layer RequestsContext actually uses) imports this —
+// it was calling `apiRequest` which this file never exported, so every
+// request/accept/cancel call was throwing "apiRequest is not a function"
+// before it even reached the network.
+export function apiRequest<T>(path: string, options: { method?: string; body?: object } = {}): Promise<T> {
+  return request<T>(path, {
+    method: options.method,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
+}
+
 // ─── Endpoint groups (mirrors the API reference doc) ────────────────────────
 
 export const apiClient = {
