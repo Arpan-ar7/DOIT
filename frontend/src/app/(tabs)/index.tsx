@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, SafeAreaView, ActivityIndicator, RefreshControl, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -104,19 +104,20 @@ export default function HomeScreen() {
               <View style={styles.outingBtn}><Text style={styles.outingBtnText}>I'm going</Text></View>
             </Pressable>
 
-            {myRequests.length > 0 && (
-              <>
-                <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Your requests</Text></View>
-                <View style={styles.listPadding}>
-                  {myRequests.map((r) => (
-                    <RequestCard key={r.id} request={r} onPress={() => router.push(routes.requestDetails(r.id))} />
-                  ))}
-                </View>
-              </>
-            )}
-
             <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active requests near you</Text></View>
           </>
+        }
+        ListFooterComponent={
+          myRequests.length > 0 ? (
+            <View style={{ paddingBottom: 20 }}>
+              <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Your requests</Text></View>
+              <View style={styles.listPadding}>
+                {myRequests.slice(0, 2).map((r) => (
+                  <RequestCard key={r.id} request={r} onPress={() => router.push(routes.requestDetails(r.id))} />
+                ))}
+              </View>
+            </View>
+          ) : null
         }
         renderItem={({ item }) => (
           <View style={styles.listPadding}>
@@ -177,5 +178,19 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 30, paddingHorizontal: 40, gap: 8 },
   emptyTitle: { fontSize: 14, fontWeight: '700', color: colors.ink, marginTop: 4 },
   emptySub: { fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18 },
-  fab: { position: 'absolute', right: 22, bottom: 22, width: 56, height: 56, borderRadius: 18, backgroundColor: colors.orange, alignItems: 'center', justifyContent: 'center', shadowColor: '#f47b44', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 7 }, elevation: 5 },
+  fab: {
+    position: 'absolute',
+    right: 22,
+    bottom: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: colors.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      web: { boxShadow: '0px 7px 12px rgba(244, 123, 68, 0.35)' },
+      default: { shadowColor: '#f47b44', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 7 }, elevation: 5 }
+    })
+  },
 });

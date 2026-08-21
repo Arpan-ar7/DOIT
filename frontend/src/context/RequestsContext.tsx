@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DeliveryRequest, RequestCategory, GoingTrip, initialGoingTrips, CATEGORY_EMOJIS } from '../constants/mockData';
-import { formatClockTime } from '../utils/time';
 import { useAuth } from './AuthContext';
 import {
   getOpenFeed,
@@ -13,8 +13,7 @@ import {
   ApiRequestRow,
 } from '../lib/requestsApi';
 import { getProfilesByIds, initialsFromName, ProfileRow } from '../lib/profilesApi';
-
-export type ChatMessage = { id: string; requestId: string; fromMe: boolean; text: string; time: string; createdAt: number };
+import { supabase } from '../lib/supabase';
 
 type NewRequestInput = {
   itemName: string;
@@ -37,17 +36,12 @@ type RequestsContextValue = {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  messagesByRequest: Record<string, ChatMessage[]>;
   goingTrips: GoingTrip[];
-  readStatus: Record<string, number>;
   createRequest: (input: NewRequestInput) => Promise<ActionResult>;
   cancelRequest: (requestId: string) => Promise<ActionResult>;
   acceptRequest: (requestId: string) => Promise<ActionResult>;
   advanceStatus: (requestId: string) => Promise<ActionResult>;
   rateRequest: (requestId: string, rating: number) => Promise<ActionResult>;
-  sendMessage: (requestId: string, text: string, fromMe?: boolean) => void;
-  seedConversation: (requestId: string, requesterFirstName: string) => void;
-  markRead: (requestId: string) => void;
   announceTrip: (input: NewTripInput) => void;
   getRequestById: (id: string) => DeliveryRequest | undefined;
 };
@@ -99,24 +93,11 @@ function mapApiRequest(row: ApiRequestRow, profilesById: Record<string, ProfileR
 export function RequestsProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
 
-  const [requests, setRequests] = useState<DeliveryRequest[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  // STILL mock/local — backend has no messages module yet, and "going out"
-  // only stores one current status per profile, not a history to fetch.
-  const [messagesByRequest, setMessagesByRequest] = useState<Record<string, ChatMessage[]>>({});
-  const [goingTrips, setGoingTrips] = useState<GoingTrip[]>(initialGoingTrips);
-  const [readStatus, setReadStatus] = useState<Record<string, number>>({});
-
-  // Pulls the public feed + your posted requests + your accepted deliveries,
-  // merges into ONE de-duplicated array — keeps every screen (Home, Orders,
-  // etc.) working unchanged, since they already filter this locally.
-  const refresh = useCallback(async () => {
-    if (!isAuthenticated) return;
-    setLoading(true);
-    setError(null);
-    try {
+  const { data: requests = [], isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: ['requests'],
+    queryFn: async () => {
       const [feed, mine, delivering] = await Promise.all([
         getOpenFeed(),
         getMyRequests('requester'),
@@ -128,17 +109,56 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
       const profileIds = uniqueRows.flatMap((r) => [r.requester_id, r.deliverer_id].filter(Boolean) as string[]);
       const profilesById = await getProfilesByIds(profileIds);
 
-      setRequests(uniqueRows.map((row) => mapApiRequest(row, profilesById)));
-    } catch (err: any) {
-      setError(err.message ?? 'Could not load requests.');
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated]);
+      return uniqueRows.map((row) => mapApiRequest(row, profilesById));
+    },
+    enabled: isAuthenticated,
+  });
+
+  const error = queryError ? queryError.message : null;
+  const refresh = useCallback(async () => { await refetch(); }, [refetch]);
+
+  // STILL mock/local — "going out" only stores one current status per
+  // profile, not a history to fetch, and has no backend module yet.
+  const [goingTrips, setGoingTrips] = useState<GoingTrip[]>(initialGoingTrips);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!isAuthenticated) return;
+
+    const channel = supabase
+      .channel('public:requests')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'requests' },
+        async (payload) => {
+          const newRow = payload.new as ApiRequestRow;
+          const oldRow = payload.old as { id: string };
+
+          if (payload.eventType === 'DELETE') {
+            queryClient.setQueryData<DeliveryRequest[]>(['requests'], (old) => old ? old.filter(r => r.id !== oldRow.id) : old);
+            return;
+          }
+
+          // Fetch profiles just for the affected row
+          const profileIds = [newRow.requester_id, newRow.deliverer_id].filter(Boolean) as string[];
+          const profilesById = await getProfilesByIds(profileIds);
+          const updatedRequest = mapApiRequest(newRow, profilesById);
+
+          queryClient.setQueryData<DeliveryRequest[]>(['requests'], (old) => {
+            if (!old) return [updatedRequest];
+            const exists = old.some(r => r.id === updatedRequest.id);
+            if (exists) {
+              return old.map(r => r.id === updatedRequest.id ? updatedRequest : r);
+            }
+            return [updatedRequest, ...old];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, queryClient]);
 
   async function createRequest(input: NewRequestInput): Promise<ActionResult> {
     try {
@@ -203,40 +223,6 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ── Unchanged — still local/mock, no backend support yet ──
-  function sendMessage(requestId: string, text: string, fromMe: boolean = true) {
-    const now = Date.now();
-    const message: ChatMessage = {
-      id: `m${now}-${Math.random().toString(36).slice(2, 6)}`,
-      requestId,
-      fromMe,
-      text,
-      time: formatClockTime(new Date(now)),
-      createdAt: now,
-    };
-    setMessagesByRequest((prev) => ({ ...prev, [requestId]: [...(prev[requestId] ?? []), message] }));
-  }
-
-  function seedConversation(requestId: string, requesterFirstName: string) {
-    setMessagesByRequest((prev) => {
-      if (prev[requestId]?.length) return prev;
-      const now = Date.now();
-      const seedMessage: ChatMessage = {
-        id: `seed-${requestId}`,
-        requestId,
-        fromMe: false,
-        text: `Hi! Thanks for accepting my request 😊`,
-        time: formatClockTime(new Date(now)),
-        createdAt: now,
-      };
-      return { ...prev, [requestId]: [seedMessage] };
-    });
-  }
-
-  function markRead(requestId: string) {
-    setReadStatus((prev) => ({ ...prev, [requestId]: Date.now() }));
-  }
-
   function announceTrip(input: NewTripInput) {
     if (!user) return;
     const trip: GoingTrip = {
@@ -257,9 +243,9 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     <RequestsContext.Provider
       value={{
         requests, loading, error, refresh,
-        messagesByRequest, goingTrips, readStatus,
+        goingTrips,
         createRequest, cancelRequest, acceptRequest, advanceStatus, rateRequest,
-        sendMessage, seedConversation, markRead, announceTrip, getRequestById,
+        announceTrip, getRequestById,
       }}
     >
       {children}

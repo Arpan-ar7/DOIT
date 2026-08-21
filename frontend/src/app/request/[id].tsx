@@ -153,9 +153,6 @@ export default function RequestDetailsScreen() {
                 {accepting ? 'Accepting...' : alreadyAccepted ? 'Already accepted' : `Accept request · Earn ₹${request.deliveryFee}`}
               </Text>
             </Pressable>
-            <Pressable style={styles.btnOutline} onPress={() => router.push(routes.chat(request.id))}>
-              <Text style={styles.btnOutlineText}>Ask {request.requester.name.split(' ')[0]} a question</Text>
-            </Pressable>
           </>
         )}
       </ScrollView>

@@ -1,19 +1,20 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
-import { getConversations } from '../../utils/conversations';
+import { useConversations } from '../../hooks/useConversations';
+import { formatClockTime } from '../../utils/time';
 import { routes } from '../../constants/routes';
 import Avatar from '../../components/Avatar';
 
 export default function MessagesScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { requests, messagesByRequest, readStatus } = useRequests();
-  const conversations = getConversations(requests, messagesByRequest, readStatus, user?.id ?? '');
+  const { requests } = useRequests();
+  const { conversations, loading } = useConversations(requests, user?.id ?? '');
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -22,32 +23,50 @@ export default function MessagesScreen() {
         keyExtractor={(item) => item.request.id}
         contentContainerStyle={styles.content}
         ListHeaderComponent={<View style={styles.top}><Text style={styles.h2}>Messages</Text></View>}
-        renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => router.push(routes.chat(item.request.id))}>
-            <Avatar initials={item.request.requester.initials} backgroundColor="#f7d5c7" textColor="#994327" />
-            <View style={{ flex: 1 }}>
-              <View style={styles.rowTop}>
-                <View style={styles.nameRow}>
-                  {item.unread && <View style={styles.unreadDot} />}
-                  <Text style={styles.name} numberOfLines={1}>{item.request.requester.name}</Text>
+        renderItem={({ item }) => {
+          const otherName =
+            user?.id === item.request.requester.id
+              ? item.request.accepter?.name ?? 'Deliverer'
+              : item.request.requester.name;
+          const otherInitials =
+            user?.id === item.request.requester.id
+              ? item.request.accepter?.initials ?? '?'
+              : item.request.requester.initials;
+          return (
+            <Pressable style={styles.row} onPress={() => router.push(routes.chat(item.request.id))}>
+              <Avatar initials={otherInitials} backgroundColor="#f7d5c7" textColor="#994327" />
+              <View style={{ flex: 1 }}>
+                <View style={styles.rowTop}>
+                  <View style={styles.nameRow}>
+                    {item.unread && <View style={styles.unreadDot} />}
+                    <Text style={styles.name} numberOfLines={1}>{otherName}</Text>
+                  </View>
+                  {item.lastMessage && (
+                    <Text style={styles.time}>{formatClockTime(new Date(item.lastMessage.created_at))}</Text>
+                  )}
                 </View>
-                {item.lastMessage && <Text style={styles.time}>{item.lastMessage.time}</Text>}
+                <Text style={[styles.preview, item.unread && styles.previewUnread]} numberOfLines={1}>
+                  {item.lastMessage
+                    ? `${item.lastMessage.sender_id === user?.id ? 'You: ' : ''}${item.lastMessage.content}`
+                    : `About "${item.request.itemName}" · Tap to say hi`}
+                </Text>
               </View>
-              <Text style={[styles.preview, item.unread && styles.previewUnread]} numberOfLines={1}>
-                {item.lastMessage
-                  ? `${item.lastMessage.fromMe ? 'You: ' : ''}${item.lastMessage.text}`
-                  : `About "${item.request.itemName}" · Tap to say hi`}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#9ba6a0" />
-          </Pressable>
-        )}
+              <Ionicons name="chevron-forward" size={16} color="#9ba6a0" />
+            </Pressable>
+          );
+        }}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="chatbubbles-outline" size={32} color={colors.muted} />
-            <Text style={styles.emptyTitle}>No conversations yet</Text>
-            <Text style={styles.emptySub}>Accept a request from Home to start chatting with a requester.</Text>
-          </View>
+          loading ? (
+            <View style={styles.empty}>
+              <ActivityIndicator color={colors.green} />
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Ionicons name="chatbubbles-outline" size={32} color={colors.muted} />
+              <Text style={styles.emptyTitle}>No conversations yet</Text>
+              <Text style={styles.emptySub}>Accept a request from Home to start chatting with a requester.</Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>

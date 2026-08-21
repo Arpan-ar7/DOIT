@@ -9,34 +9,101 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
+import { useAuth } from '../../context/AuthContext';
+import { formatClockTime } from '../../utils/time';
+import { getMessages, sendMessage, subscribeToMessages, markMessagesRead, MessageRow } from '../../lib/messagesApi';
 import Avatar from '../../components/Avatar';
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getRequestById, messagesByRequest, sendMessage, seedConversation, markRead } = useRequests();
+  const { getRequestById } = useRequests();
+  const { user } = useAuth();
   const request = getRequestById(id);
-  const messages = messagesByRequest[id] ?? [];
+
+  const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
-    if (request) {
-      seedConversation(request.id, request.requester.name.split(' ')[0]);
-      markRead(request.id);
-    }
-  }, [request?.id]);
+  // Chat only opens once the request is accepted — matches
+  // messages_insert_participant RLS (status must be accepted/in_progress).
+  // 'completed' is read-only: the select policy stops returning rows past
+  // that point, so we treat it as ended rather than trying to load history.
+  const chatOpen = request?.status === 'accepted' || request?.status === 'in_progress';
+  const chatEnded = request?.status === 'completed';
 
-  function handleSend() {
-    if (!text.trim() || !request) return;
-    sendMessage(request.id, text.trim(), true);
+  const other = request
+    ? user?.id === request.requester.id
+      ? { name: request.accepter?.name ?? 'Deliverer', initials: request.accepter?.initials ?? '?' }
+      : { name: request.requester.name, initials: request.requester.initials }
+    : null;
+
+  useEffect(() => {
+    if (!request || !chatOpen || !user) return;
+    let cancelled = false;
+
+    setLoading(true);
+    getMessages(request.id)
+      .then((rows) => {
+        if (!cancelled) setMessages(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    markMessagesRead(request.id, user.id).catch(() => {});
+
+    const unsubscribe = subscribeToMessages(request.id, (msg) => {
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      if (msg.sender_id !== user.id) {
+        markMessagesRead(request.id, user.id).catch(() => {});
+      }
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [request?.id, chatOpen, user?.id]);
+
+  async function handleSend() {
+    const content = text.trim();
+    if (!content || !request || !user || sending) return;
     setText('');
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    setSending(true);
+    try {
+      // Optimistic bubble — the realtime INSERT event for our own message
+      // still arrives, but the id-dedupe above absorbs it once it does.
+      const optimistic: MessageRow = {
+        id: `pending-${Date.now()}`,
+        request_id: request.id,
+        sender_id: user.id,
+        content,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, optimistic]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+
+      const saved = await sendMessage(request.id, user.id, content);
+      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? saved : m)));
+    } catch (e) {
+      // Send failed (offline / RLS) — drop the optimistic bubble and give
+      // the text back so nothing is silently lost.
+      setMessages((prev) => prev.filter((m) => !m.id.startsWith('pending-')));
+      setText(content);
+    } finally {
+      setSending(false);
+    }
   }
 
   if (!request) {
@@ -57,45 +124,69 @@ export default function ChatScreen() {
             <Ionicons name="arrow-back" size={20} color={colors.ink} />
           </Pressable>
           <View style={styles.person}>
-            <Avatar initials={request.requester.initials} backgroundColor="#d4e8f8" textColor="#236b95" />
+            <Avatar initials={other?.initials ?? '?'} backgroundColor="#d4e8f8" textColor="#236b95" />
             <View>
-              <Text style={styles.personName}>{request.requester.name}</Text>
-              <Text style={styles.online}>● Online</Text>
+              <Text style={styles.personName}>{other?.name}</Text>
             </View>
           </View>
-          <Pressable style={styles.iconBtn}>
-            <Ionicons name="call-outline" size={18} color={colors.ink} />
-          </Pressable>
         </View>
 
-        <ScrollView
-          ref={scrollRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.chatArea}
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
-        >
-          <Text style={styles.date}>Today</Text>
-          {messages.map((m) => (
-            <View key={m.id} style={[styles.bubble, m.fromMe ? styles.bubbleMe : styles.bubbleThem]}>
-              <Text style={m.fromMe ? styles.bubbleTextMe : styles.bubbleTextThem}>{m.text}</Text>
-              <Text style={styles.bubbleTime}>{m.time}</Text>
+        {!chatOpen && !chatEnded && (
+          <View style={styles.center}>
+            <Text style={styles.emptyText}>Chat opens once this request is accepted.</Text>
+          </View>
+        )}
+
+        {chatEnded && (
+          <View style={styles.center}>
+            <Text style={styles.emptyText}>This request is completed — the conversation has ended.</Text>
+          </View>
+        )}
+
+        {chatOpen && (
+          <>
+            {loading ? (
+              <View style={styles.center}>
+                <ActivityIndicator color={colors.green} />
+              </View>
+            ) : (
+              <ScrollView
+                ref={scrollRef}
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.chatArea}
+                onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+              >
+                {messages.length === 0 && (
+                  <Text style={styles.date}>Say hi to get started</Text>
+                )}
+                {messages.map((m) => {
+                  const fromMe = m.sender_id === user?.id;
+                  return (
+                    <View key={m.id} style={[styles.bubble, fromMe ? styles.bubbleMe : styles.bubbleThem]}>
+                      <Text style={fromMe ? styles.bubbleTextMe : styles.bubbleTextThem}>{m.content}</Text>
+                      <Text style={styles.bubbleTime}>{formatClockTime(new Date(m.created_at))}</Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.input}
+                placeholder={`Message ${other?.name?.split(' ')[0] ?? ''}...`}
+                value={text}
+                onChangeText={setText}
+                onSubmitEditing={handleSend}
+                returnKeyType="send"
+                editable={!sending}
+              />
+              <Pressable style={styles.sendBtn} onPress={handleSend} disabled={sending}>
+                <Ionicons name="send" size={18} color="#fff" />
+              </Pressable>
             </View>
-          ))}
-        </ScrollView>
-
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.input}
-            placeholder={`Message ${request.requester.name.split(' ')[0]}...`}
-            value={text}
-            onChangeText={setText}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-          />
-          <Pressable style={styles.sendBtn} onPress={handleSend}>
-            <Ionicons name="send" size={18} color="#fff" />
-          </Pressable>
-        </View>
+          </>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -126,7 +217,6 @@ const styles = StyleSheet.create({
   },
   person: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   personName: { fontSize: 14, fontWeight: '700', color: colors.ink },
-  online: { fontSize: 11, color: colors.green, marginTop: 2 },
   chatArea: { padding: spacing.xl, gap: 10, flexGrow: 1 },
   date: { textAlign: 'center', color: colors.muted, fontSize: 11, marginBottom: 8 },
   bubble: { maxWidth: '78%', paddingVertical: 11, paddingHorizontal: 13, borderRadius: 15 },

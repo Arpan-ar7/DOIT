@@ -33,13 +33,17 @@ export default function OrdersScreen() {
   const { requests, loading, refresh } = useRequests();
 
   // CHANGED — CURRENT_USER.id -> real user id.
-  const myOrders = requests.filter((r) => r.requester.id === user?.id);
+  const acceptedByMe = requests.filter((r) => r.accepterId === user?.id);
+  const generatedByMe = requests.filter((r) => r.requester.id === user?.id);
+  const hasOrders = acceptedByMe.length > 0 || generatedByMe.length > 0;
 
   function isOver(r: DeliveryRequest) {
     return r.status === 'cancelled' || r.status === 'completed' || (r.status === 'pending' && isExpired(r.expiresAt));
   }
-  const activeOrders = myOrders.filter((r) => !isOver(r));
-  const pastOrders = myOrders.filter((r) => isOver(r));
+  const activeAccepted = acceptedByMe.filter((r) => !isOver(r));
+  const pastAccepted = acceptedByMe.filter((r) => isOver(r));
+  const activeGenerated = generatedByMe.filter((r) => !isOver(r));
+  const pastGenerated = generatedByMe.filter((r) => isOver(r));
 
   function handlePress(request: DeliveryRequest) {
     if (request.status === 'pending' || request.status === 'cancelled') {
@@ -78,12 +82,12 @@ export default function OrdersScreen() {
       >
         <View style={styles.top}>
           <Text style={styles.h2}>My Orders</Text>
-          <Text style={styles.subtitle}>Requests you've posted, and their live status.</Text>
+          <Text style={styles.subtitle}>Requests you've accepted and posted, and their live status.</Text>
         </View>
 
-        {loading && myOrders.length === 0 && <ActivityIndicator style={{ marginTop: 30 }} color={colors.green} />}
+        {loading && !hasOrders && <ActivityIndicator style={{ marginTop: 30 }} color={colors.green} />}
 
-        {!loading && myOrders.length === 0 && (
+        {!loading && !hasOrders && (
           <View style={styles.empty}>
             <Ionicons name="receipt-outline" size={30} color={colors.muted} />
             <Text style={styles.emptyTitle}>No orders yet</Text>
@@ -91,17 +95,31 @@ export default function OrdersScreen() {
           </View>
         )}
 
-        {activeOrders.length > 0 && (
+        {activeAccepted.length > 0 && (
           <>
-            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active</Text></View>
-            {activeOrders.map(renderOrderRow)}
+            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active - Accepted by you</Text></View>
+            {activeAccepted.map(renderOrderRow)}
           </>
         )}
 
-        {pastOrders.length > 0 && (
+        {pastAccepted.length > 0 && (
           <>
-            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Past</Text></View>
-            {pastOrders.map(renderOrderRow)}
+            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Past - Accepted by you</Text></View>
+            {pastAccepted.map(renderOrderRow)}
+          </>
+        )}
+
+        {activeGenerated.length > 0 && (
+          <>
+            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active - Posted by you</Text></View>
+            {activeGenerated.map(renderOrderRow)}
+          </>
+        )}
+
+        {pastGenerated.length > 0 && (
+          <>
+            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Past - Posted by you</Text></View>
+            {pastGenerated.map(renderOrderRow)}
           </>
         )}
       </ScrollView>

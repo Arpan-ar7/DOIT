@@ -3,14 +3,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
-import { getConversations, getUnreadCount } from '../../utils/conversations';
+import { useConversations } from '../../hooks/useConversations';
 
 export default function TabsLayout() {
   const { user } = useAuth();
-  const { requests, messagesByRequest, readStatus } = useRequests();
-  // Falls back to '' if not logged in — getConversations just returns
-  // nothing for an id that matches no request, so this is a safe no-op.
-  const unreadCount = getUnreadCount(getConversations(requests, messagesByRequest, readStatus, user?.id ?? ''));
+  const { requests } = useRequests();
+  // Falls back to '' if not logged in — the hook just returns nothing for
+  // an empty id, so this is a safe no-op.
+  const { unreadCount } = useConversations(requests, user?.id ?? '');
 
   return (
     <Tabs

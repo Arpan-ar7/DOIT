@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 export const colors = {
   ink: '#172226',
   muted: '#708084',
@@ -19,13 +21,18 @@ export const radius = {
   xl: 22,
 };
 
-export const shadow = {
-  shadowColor: '#182c25',
-  shadowOpacity: 0.08,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 10 },
-  elevation: 3,
-};
+export const shadow = Platform.select({
+  web: {
+    boxShadow: '0px 10px 14px rgba(24, 44, 37, 0.08)',
+  },
+  default: {
+    shadowColor: '#182c25',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
+  },
+});
 
 export const spacing = {
   xs: 4,
@@ -34,7 +41,6 @@ export const spacing = {
   lg: 16,
   xl: 22,
 };
-import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
