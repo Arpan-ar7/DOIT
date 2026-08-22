@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from '../lib/supabase';
 import { isEmailFormatValid, isGrNoFormatValid, isPhoneFormatValid } from '../utils/validation';
 import { isUsernameFormatValid, isUsernameTaken } from '../utils/username';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import { registerForPushNotificationsAsync } from '../lib/notifications';
 import { apiClient } from '../lib/apiClient';
 
@@ -82,10 +82,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Register Push Token after successful login / load
     registerForPushNotificationsAsync().then((token) => {
       if (token) {
+        // Alert.alert('Push Token Success', 'Got token: ' + token.slice(0, 10) + '...');
         const platform = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
-        apiClient.notifications.registerToken(token, platform).catch((err) => {
+        apiClient.notifications.registerToken(token, platform).then(() => {
+          Alert.alert('Backend Success', 'Token saved to DB!');
+        }).catch((err) => {
+          Alert.alert('Backend Error', 'Failed to save token to DB: ' + err.message);
           console.error('Failed to register push token with backend:', err);
         });
+      } else {
+        Alert.alert('Token Error', 'Could not get device push token. Check Metro console.');
       }
     });
   }
