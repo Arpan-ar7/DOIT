@@ -24,7 +24,6 @@ export default function SettingsScreen() {
 
   const [name, setName] = useState(user?.name ?? '');
   const [username, setUsername] = useState(user?.username ?? '');
-  const [hostel, setHostel] = useState(user?.hostel ?? '');
   const [photoUri, setPhotoUri] = useState<string | null>(user?.photoUri ?? null);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -79,7 +78,6 @@ export default function SettingsScreen() {
     const result = await updateProfile({
       name: name.trim(),
       username: trimmedUsername || user?.username,
-      hostel: hostel.trim(),
       photoUri,
     });
     setSaving(false);
@@ -146,13 +144,6 @@ export default function SettingsScreen() {
               </View>
             )}
 
-            <Text style={styles.label}>Hostel / Room</Text>
-            <TextInput
-              style={styles.input}
-              value={hostel}
-              onChangeText={setHostel}
-              placeholder="e.g. Boys Hostel, Room 214"
-            />
 
             {!!saveError && <Text style={styles.errorText}>{saveError}</Text>}
             {saveSuccess && <Text style={styles.successText}>Profile updated.</Text>}

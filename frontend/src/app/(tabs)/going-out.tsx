@@ -1,153 +1,171 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, StatusBar as RNStatusBar } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
-import { useRequests } from '../../context/RequestsContext';
+
+const STORAGE_KEY = 'going_out_timestamp';
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
 export default function GoingOutScreen() {
-  const { goingTrips, announceTrip } = useRequests();
-  const [destination, setDestination] = useState('');
-  const [leavingAt, setLeavingAt] = useState('');
-  const [backBy, setBackBy] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
+  const [isOut, setIsOut] = useState(false);
+  const [since, setSince] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const isValid = destination.trim().length > 0 && leavingAt.trim().length > 0 && backBy.trim().length > 0;
+  // On mount, check if there's a stored going-out timestamp that's still valid
+  const checkStatus = useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const ts = parseInt(stored, 10);
+        if (Date.now() - ts < TWELVE_HOURS_MS) {
+          setIsOut(true);
+          setSince(new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        } else {
+          // Expired — clear it
+          await AsyncStorage.removeItem(STORAGE_KEY);
+          setIsOut(false);
+          setSince(null);
+        }
+      }
+    } catch (_) {
+      // ignore storage errors
+    }
+    setLoading(false);
+  }, []);
 
-  function handleAnnounce() {
-    if (!isValid) return;
-    announceTrip({ destination: destination.trim(), leavingAt: leavingAt.trim(), backBy: backBy.trim() });
-    setDestination('');
-    setLeavingAt('');
-    setBackBy('');
-    setConfirmed(true);
-    setTimeout(() => setConfirmed(false), 2500);
+  useEffect(() => {
+    checkStatus();
+  }, [checkStatus]);
+
+  async function handleGoingOut() {
+    const now = Date.now();
+    await AsyncStorage.setItem(STORAGE_KEY, now.toString());
+    setIsOut(true);
+    setSince(new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   }
 
+  async function handleBack() {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    setIsOut(false);
+    setSince(null);
+  }
+
+  if (loading) return <View style={styles.safe} />;
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.h2}>I'm going outside</Text>
+    <View style={styles.safe}>
+      <View style={styles.content}>
+        <Text style={styles.h2}>Going Out</Text>
 
-        <View style={styles.hero}>
-          <Ionicons name="navigate-circle-outline" size={27} color="#fff" />
-          <Text style={styles.heroTitle}>Make your trip count</Text>
-          <Text style={styles.heroSub}>
-            Share where you're headed and help someone get what they need along the way.
-          </Text>
-        </View>
-
-        <View style={styles.formCard}>
-          <Text style={styles.label}>Where are you going?</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. City Centre Mall"
-            value={destination}
-            onChangeText={setDestination}
-          />
-          <Text style={styles.label}>Leaving campus around</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. 2:30 PM · Today"
-            value={leavingAt}
-            onChangeText={setLeavingAt}
-          />
-          <Text style={styles.label}>I'll be back by</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. 4:30 PM · Today"
-            value={backBy}
-            onChangeText={setBackBy}
-          />
-          <Pressable style={[styles.btn, !isValid && styles.btnDisabled]} onPress={handleAnnounce} disabled={!isValid}>
-            <Text style={styles.btnText}>Announce my trip</Text>
-          </Pressable>
-          {confirmed && (
-            <Text style={styles.confirmedText}>
-              You're announced! Relevant requests will appear for you.
+        {!isOut ? (
+          // ── Not out yet ──
+          <View style={styles.card}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="navigate-circle-outline" size={48} color={colors.green} />
+            </View>
+            <Text style={styles.cardTitle}>Heading somewhere?</Text>
+            <Text style={styles.cardSub}>
+              Let others know you're available to pick up items while you're out.
             </Text>
-          )}
-        </View>
-
-        {/* PRIVACY CHANGE — individual trip cards (who's going where, when)
-            are gone. Only a total count is shown, with zero identifying
-            info. This protects students from broadcasting "I'm off campus
-            right now" details to everyone browsing the app. */}
-        <View style={styles.countCard}>
-          <View style={styles.countIcon}>
-            <Ionicons name="people-outline" size={22} color={colors.green} />
+            <Pressable style={styles.btn} onPress={handleGoingOut}>
+              <Ionicons name="walk-outline" size={18} color="#fff" />
+              <Text style={styles.btnText}>I am going out</Text>
+            </Pressable>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.countNumber}>{goingTrips.length}</Text>
-            <Text style={styles.countLabel}>
-              {goingTrips.length === 1 ? 'student is' : 'students are'} currently going out
+        ) : (
+          // ── Currently out ──
+          <View style={styles.outCard}>
+            <View style={styles.statusBadge}>
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={styles.statusText}>You are currently out</Text>
+            </View>
+            <Text style={styles.sinceText}>Since {since}</Text>
+            <Text style={styles.outSub}>
+              Your status will automatically reset in 12 hours. Others can see that you're available to carry items.
             </Text>
+            <Pressable style={styles.backBtn} onPress={handleBack}>
+              <Ionicons name="return-down-back-outline" size={16} color={colors.green} />
+              <Text style={styles.backBtnText}>I'm back</Text>
+            </Pressable>
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        )}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  content: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: 40 },
-  h2: { fontSize: 22, fontWeight: '700', color: colors.ink },
-  hero: {
-    backgroundColor: colors.green,
-    padding: 20,
+  safe: {
+    flex: 1,
+    backgroundColor: colors.cream,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) + 8 : 52,
+  },
+  content: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+  },
+  h2: { fontSize: 22, fontWeight: '700', color: colors.ink, marginBottom: 24 },
+
+  // ── Not-out card ──
+  card: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: colors.line,
     borderRadius: radius.xl,
-    marginTop: 18,
-    marginBottom: 18,
-  },
-  heroTitle: { color: '#fff', fontSize: 20, fontWeight: '700', marginTop: 13 },
-  heroSub: { color: '#fff', opacity: 0.8, fontSize: 12, marginTop: 6, lineHeight: 18 },
-  formCard: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.lg,
-    padding: 16,
-  },
-  label: { fontSize: 12, color: '#516164', fontWeight: '700', marginTop: 15, marginBottom: 7 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e2e7e0',
-    backgroundColor: '#fafbf8',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  btn: {
-    backgroundColor: colors.green,
-    borderRadius: 14,
-    paddingVertical: 15,
+    padding: 28,
     alignItems: 'center',
-    marginTop: 18,
   },
-  btnDisabled: { opacity: 0.5 },
-  btnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  confirmedText: { color: colors.green, fontSize: 12, fontWeight: '600', marginTop: 10, textAlign: 'center' },
-  // Replaces the old "Students going out now" list + section header entirely.
-  countCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.lg,
-    padding: 18,
-    marginTop: 22,
-  },
-  countIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: colors.mint,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 18,
   },
-  countNumber: { fontSize: 24, fontWeight: '800', color: colors.ink },
-  countLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: colors.ink, marginBottom: 8 },
+  cardSub: { fontSize: 13, color: colors.muted, textAlign: 'center', lineHeight: 19, marginBottom: 22 },
+  btn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.green,
+    borderRadius: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+  },
+  btnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+
+  // ── Out card ──
+  outCard: {
+    backgroundColor: colors.green,
+    borderRadius: radius.xl,
+    padding: 28,
+    alignItems: 'center',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 12,
+  },
+  statusText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  sinceText: { color: '#fff', opacity: 0.85, fontSize: 13, marginBottom: 10 },
+  outSub: { color: '#fff', opacity: 0.7, fontSize: 12, textAlign: 'center', lineHeight: 18, marginBottom: 22 },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+  },
+  backBtnText: { color: colors.green, fontSize: 14, fontWeight: '800' },
 });

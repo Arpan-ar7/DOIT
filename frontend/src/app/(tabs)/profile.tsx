@@ -10,7 +10,6 @@ import Avatar from '../../components/Avatar';
 
 const MENU_ITEMS: { icon: keyof typeof Ionicons.glyphMap; label: string; route?: string }[] = [
   { icon: 'wallet-outline', label: 'My earnings & history', route: routes.earnings() },
-  { icon: 'checkmark-done-outline', label: 'Completed requests' },
   { icon: 'settings-outline', label: 'Settings', route: routes.settings() },
 ];
 
@@ -36,7 +35,7 @@ export default function ProfileScreen() {
 
           <View style={styles.stats}>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{CURRENT_USER.rating} ★</Text>
+              <Text style={styles.statValue}>{CURRENT_USER.rating > 0 ? `${CURRENT_USER.rating} ★` : '– ★'}</Text>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
             <View style={styles.stat}>
@@ -44,7 +43,7 @@ export default function ProfileScreen() {
               <Text style={styles.statLabel}>Deliveries</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>₹{CURRENT_USER.earned}</Text>
+              <Text style={styles.statValue}>{CURRENT_USER.earned > 0 ? `₹${CURRENT_USER.earned}` : '₹0'}</Text>
               <Text style={styles.statLabel}>Earned</Text>
             </View>
           </View>

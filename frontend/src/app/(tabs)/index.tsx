@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, SafeAreaView, ActivityIndicator, RefreshControl, Platform } from 'react-native';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, StatusBar as RNStatusBar } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -9,14 +10,43 @@ import { CATEGORIES, RequestCategory, isExpired } from '../../constants/mockData
 import { routes } from '../../constants/routes';
 import RequestCard from '../../components/RequestCard';
 
+const GOING_OUT_KEY = 'going_out_timestamp';
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  // CHANGED — added loading/error/refresh, since this data now comes over
-  // the network and can genuinely fail or take a moment, unlike mock state.
-  const { requests, goingTrips, loading, error, refresh } = useRequests();
+  const { requests, loading, error, refresh } = useRequests();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<RequestCategory | 'all'>('all');
+
+  // ── Going-out toggle state ──
+  const [isOut, setIsOut] = useState(false);
+
+  const checkGoingOutStatus = useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem(GOING_OUT_KEY);
+      if (stored) {
+        const ts = parseInt(stored, 10);
+        setIsOut(Date.now() - ts < TWELVE_HOURS_MS);
+        if (Date.now() - ts >= TWELVE_HOURS_MS) await AsyncStorage.removeItem(GOING_OUT_KEY);
+      } else {
+        setIsOut(false);
+      }
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => { checkGoingOutStatus(); }, [checkGoingOutStatus]);
+
+  async function toggleGoingOut() {
+    if (isOut) {
+      await AsyncStorage.removeItem(GOING_OUT_KEY);
+      setIsOut(false);
+    } else {
+      await AsyncStorage.setItem(GOING_OUT_KEY, Date.now().toString());
+      setIsOut(true);
+    }
+  }
 
   // CHANGED — CURRENT_USER.id -> the REAL logged-in user's id.
   const myRequests = requests.filter((r) => r.requester.id === user?.id);
@@ -39,7 +69,7 @@ export default function HomeScreen() {
   const initials = user?.name ? user.name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() : 'S';
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <FlatList
         data={activeRequests}
         keyExtractor={(item) => item.id}
@@ -93,15 +123,19 @@ export default function HomeScreen() {
               })}
             </View>
 
-            <Pressable style={styles.outingBanner} onPress={() => router.push(routes.goingOut())}>
-              <View style={styles.outingIcon}><Ionicons name="location-outline" size={20} color="#fff" /></View>
+            <Pressable style={[styles.outingBanner, isOut && styles.outingBannerActive]} onPress={toggleGoingOut}>
+              <View style={styles.outingIcon}>
+                <Ionicons name={isOut ? 'checkmark-circle' : 'walk-outline'} size={20} color="#fff" />
+              </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.outingTitle}>Heading out today?</Text>
+                <Text style={styles.outingTitle}>{isOut ? 'You are currently out' : 'Going out?'}</Text>
                 <Text style={styles.outingSub}>
-                  {goingTrips.length} {goingTrips.length === 1 ? 'student is' : 'students are'} heading out right now
+                  {isOut ? 'Tap to mark yourself as back' : 'Tap to let others know you\'re heading out'}
                 </Text>
               </View>
-              <View style={styles.outingBtn}><Text style={styles.outingBtnText}>I'm going</Text></View>
+              <View style={styles.outingBtn}>
+                <Text style={styles.outingBtnText}>{isOut ? "I'm back" : "I'm going out"}</Text>
+              </View>
             </Pressable>
 
             <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active requests near you</Text></View>
@@ -145,12 +179,12 @@ export default function HomeScreen() {
       <Pressable style={styles.fab} onPress={() => router.push(routes.createRequest())}>
         <Ionicons name="add" size={26} color="#fff" />
       </Pressable>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
+  safe: { flex: 1, backgroundColor: colors.cream, paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) : 0 },
   top: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greeting: { fontSize: 13, color: colors.muted, marginBottom: 4 },
   h1: { fontSize: 25, fontWeight: '700', color: colors.ink, letterSpacing: -0.8 },
@@ -167,6 +201,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: '700', color: colors.muted },
   chipTextActive: { color: '#fff' },
   outingBanner: { backgroundColor: colors.green, borderRadius: radius.md, padding: 16, marginHorizontal: spacing.xl, marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  outingBannerActive: { backgroundColor: '#2d8a62' },
   outingIcon: { width: 39, height: 39, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   outingTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
   outingSub: { color: '#fff', opacity: 0.8, fontSize: 12, marginTop: 3 },

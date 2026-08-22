@@ -199,11 +199,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       nextUsername = normalized;
     }
 
-    // Only 'name' has a real column (full_name) right now — push that to
-    // Supabase. username/hostel/photoUri stay local until the DB has
-    // matching columns/Storage.
+    // Push name and profile picture to Supabase.
+    // username/hostel stay local until the DB has matching columns.
+    const dbUpdates: any = {};
     if (updates.name !== undefined && updates.name.trim() !== user.name) {
-      const { error } = await supabase.from('profiles').update({ full_name: updates.name.trim() }).eq('id', user.id);
+      dbUpdates.full_name = updates.name.trim();
+    }
+    if (updates.photoUri !== undefined) {
+      dbUpdates.profile_picture = updates.photoUri;
+    }
+
+    if (Object.keys(dbUpdates).length > 0) {
+      const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', user.id);
       if (error) return { success: false, error: error.message };
     }
 
