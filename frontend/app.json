@@ -11,7 +11,6 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
-      
       "adaptiveIcon": {
         "softwareKeyboardLayoutMode": "resize",
         "backgroundColor": "#E6F4FE",
@@ -19,10 +18,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-
-      "predictiveBackGestureEnabled": false
-      
-
+      "predictiveBackGestureEnabled": false,
+      "package": "com.unicart.frontend"
     },
     "web": {
       "output": "static",

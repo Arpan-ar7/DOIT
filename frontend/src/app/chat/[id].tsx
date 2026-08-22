@@ -118,7 +118,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.top}>
           <Pressable style={styles.iconBtn} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={20} color={colors.ink} />
