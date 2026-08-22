@@ -174,6 +174,13 @@ export const apiClient = {
       post<ChatMessage>(`/requests/${requestId}/messages`, { content }),
     history: (requestId: string) => get<ChatMessage[]>(`/requests/${requestId}/messages`),
   },
+
+  notifications: {
+    registerToken: (fcm_token: string, platform: 'ios' | 'android' | 'web') =>
+      post<{ success: boolean }>('/notifications/register-token', { fcm_token, platform }),
+    unregisterToken: (fcm_token: string) =>
+      post<{ success: boolean }>('/notifications/unregister-token', { fcm_token }),
+  },
 };
 
 export { ApiError };

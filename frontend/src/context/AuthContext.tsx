@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { supabase } from '../lib/supabase';
 import { isEmailFormatValid, isGrNoFormatValid, isPhoneFormatValid } from '../utils/validation';
 import { isUsernameFormatValid, isUsernameTaken } from '../utils/username';
+import { Platform } from 'react-native';
+import { registerForPushNotificationsAsync } from '../lib/notifications';
+import { apiClient } from '../lib/apiClient';
 
 export type AuthUser = {
   id: string; // real Supabase user id — needed later for creating requests
@@ -75,6 +78,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserFromProfile(profile);
     setIsAuthenticated(true);
     setIsLoading(false);
+
+    // Register Push Token after successful login / load
+    registerForPushNotificationsAsync().then((token) => {
+      if (token) {
+        const platform = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
+        apiClient.notifications.registerToken(token, platform).catch((err) => {
+          console.error('Failed to register push token with backend:', err);
+        });
+      }
+    });
   }
 
   // On app start: check if a session already exists (persisted via
@@ -179,6 +192,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
+    try {
+      // Try to unregister the token before signing out
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        await apiClient.notifications.unregisterToken(token);
+      }
+    } catch (err) {
+      console.error('Failed to unregister push token:', err);
+    }
+
     await supabase.auth.signOut();
     setUser(null);
     setIsAuthenticated(false);
