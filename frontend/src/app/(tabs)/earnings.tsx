@@ -2,31 +2,31 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
-import { earningsHistory, CURRENT_USER } from '../../constants/mockData';
 import { useRequests } from '../../context/RequestsContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function EarningsScreen() {
   const { requests } = useRequests();
+  const { user } = useAuth();
 
-  const liveCompleted = requests
-    .filter((r) => r.status === 'completed' && r.accepterId === CURRENT_USER.id)
+  // Only show orders YOU completed (accepted & marked completed)
+  const completedByMe = requests
+    .filter((r) => r.status === 'completed' && r.accepterId === user?.id)
     .map((r) => ({
       id: r.id,
       itemName: r.itemName,
       emoji: r.emoji,
       forWhom: r.requester.name.split(' ')[0],
-      date: 'Just now',
+      date: 'Completed',
       amount: r.deliveryFee,
     }));
 
-  const combinedHistory = [...liveCompleted, ...earningsHistory];
-  const totalEarned = CURRENT_USER.earned + liveCompleted.reduce((sum, e) => sum + e.amount, 0);
-  const thisMonth = liveCompleted.reduce((sum, e) => sum + e.amount, 0) + 280;
+  const totalEarned = completedByMe.reduce((sum, e) => sum + e.amount, 0);
 
   return (
     <SafeAreaView style={styles.safe}>
       <FlatList
-        data={combinedHistory}
+        data={completedByMe}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         ListHeaderComponent={
@@ -35,12 +35,14 @@ export default function EarningsScreen() {
               <Text style={styles.h2}>Earnings & history</Text>
             </View>
             <View style={styles.totalCard}>
-              <Text style={styles.totalLabel}>Total earnings this semester</Text>
+              <Text style={styles.totalLabel}>Total earnings</Text>
               <Text style={styles.totalValue}>₹{totalEarned}</Text>
-              <View style={styles.totalTrend}>
-                <Ionicons name="trending-up" size={14} color="#d3f1e3" />
-                <Text style={styles.totalTrendText}>₹{thisMonth} earned this month</Text>
-              </View>
+              {totalEarned > 0 && (
+                <View style={styles.totalTrend}>
+                  <Ionicons name="trending-up" size={14} color="#d3f1e3" />
+                  <Text style={styles.totalTrendText}>From {completedByMe.length} completed {completedByMe.length === 1 ? 'delivery' : 'deliveries'}</Text>
+                </View>
+              )}
             </View>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Completed deliveries</Text>

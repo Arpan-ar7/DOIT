@@ -85,9 +85,9 @@ export const CURRENT_USER = {
   name: 'Aarav Sharma',
   initials: 'AS',
   college: 'Northview College',
-  rating: 4.9,
-  deliveries: 28,
-  earned: 1140,
+  rating: 0,
+  deliveries: 0,
+  earned: 0,
 };
 
 export const initialRequests: DeliveryRequest[] = [
@@ -229,12 +229,7 @@ export type EarningsEntry = {
   amount: number;
 };
 
-export const earningsHistory: EarningsEntry[] = [
-  { id: 'e1', itemName: 'Margherita Pizza', emoji: '🍕', forWhom: 'Neel', date: '18 Feb', amount: 50 },
-  { id: 'e2', itemName: 'Groceries from Smart', emoji: '🛒', forWhom: 'Isha', date: '15 Feb', amount: 40 },
-  { id: 'e3', itemName: 'Printouts & stationery', emoji: '📚', forWhom: 'Dev', date: '11 Feb', amount: 30 },
-  { id: 'e4', itemName: 'Boba tea order', emoji: '🧋', forWhom: 'Meera', date: '08 Feb', amount: 35 },
-];
+export const earningsHistory: EarningsEntry[] = [];
 
 export type GoingTrip = {
   id: string;
