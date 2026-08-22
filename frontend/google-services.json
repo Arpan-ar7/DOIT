@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "688052407794",
+    "project_id": "unicart-campus-dilivery",
+    "storage_bucket": "unicart-campus-dilivery.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:688052407794:android:0209362942b829c76d2f6b",
+        "android_client_info": {
+          "package_name": "com.hex2.unicart"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfhqx6oJLVa5nRxsigvxXsgnxCvayFSDM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
