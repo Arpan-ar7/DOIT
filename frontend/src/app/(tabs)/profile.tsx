@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -21,7 +22,7 @@ export default function ProfileScreen() {
   const initials = displayName.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView>
         <View style={styles.cover} />
         <View style={styles.main}>
@@ -83,7 +84,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   cover: { height: 105, backgroundColor: '#e0ecda' },
-  main: { paddingHorizontal: spacing.xl, paddingBottom: 40 },
+  main: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
   name: { fontSize: 21, fontWeight: '700', color: colors.ink, marginTop: 10 },
   username: { fontSize: 12, color: colors.muted, marginTop: 2 },
   verified: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },

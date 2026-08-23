@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, SafeAreaView, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import AnimatedEmptyState from '../../components/AnimatedEmptyState';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -75,7 +77,7 @@ export default function OrdersScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} colors={[colors.green]} />}
@@ -88,11 +90,11 @@ export default function OrdersScreen() {
         {loading && !hasOrders && <ActivityIndicator style={{ marginTop: 30 }} color={colors.green} />}
 
         {!loading && !hasOrders && (
-          <View style={styles.empty}>
-            <Ionicons name="receipt-outline" size={30} color={colors.muted} />
-            <Text style={styles.emptyTitle}>No orders yet</Text>
-            <Text style={styles.emptySub}>Post a request from Home and it'll show up here.</Text>
-          </View>
+          <AnimatedEmptyState
+            icon="receipt-outline"
+            title="No orders yet"
+            subtitle="Post a request from Home and it'll show up here."
+          />
         )}
 
         {activeAccepted.length > 0 && (
@@ -129,7 +131,7 @@ export default function OrdersScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
-  content: { paddingHorizontal: spacing.xl, paddingBottom: 40 },
+  content: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
   top: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
   h2: { fontSize: 22, fontWeight: '700', color: colors.ink },
   subtitle: { fontSize: 12, color: colors.muted, marginTop: 4 },

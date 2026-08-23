@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import ScalePressable from './ScalePressable';
 import { colors, radius, shadow } from '../constants/theme';
 import { DeliveryRequest, isExpired, STATUS_LABELS } from '../constants/mockData';
 import { minutesLeftLabel } from '../utils/time';
@@ -9,7 +10,7 @@ type Props = {
   onPress: () => void;
 };
 
-export default function RequestCard({ request, onPress }: Props) {
+const RequestCard = memo(function RequestCard({ request, onPress }: Props) {
   const isPending = request.status === 'pending';
   // Expiry only means anything while nothing has happened yet. Once
   // accepted/in_progress/completed/cancelled, we show the REAL status
@@ -46,8 +47,9 @@ export default function RequestCard({ request, onPress }: Props) {
   const isDimmed = isExpiredPending || request.status === 'cancelled';
 
   return (
-    <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed, isDimmed && styles.cardDimmed]}
+    <ScalePressable
+      style={[
+        styles.card, isDimmed && styles.cardDimmed]}
       onPress={onPress}
     >
       <View style={styles.top}>
@@ -78,9 +80,11 @@ export default function RequestCard({ request, onPress }: Props) {
           <Text style={[styles.tagText, tagTextStyles[tagVariant]]}>{tagLabel}</Text>
         </View>
       </View>
-    </Pressable>
+    </ScalePressable>
   );
-}
+});
+
+export default RequestCard;
 
 // Separate style maps (instead of one giant switch inline) so each variant's
 // background + text color are easy to scan and adjust independently.

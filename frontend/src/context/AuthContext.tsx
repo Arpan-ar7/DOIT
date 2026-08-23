@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { isEmailFormatValid, isGrNoFormatValid, isPhoneFormatValid } from '../utils/validation';
 import { isUsernameFormatValid, isUsernameTaken } from '../utils/username';
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Alert.alert('Push Token Success', 'Got token: ' + token.slice(0, 10) + '...');
         const platform = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
         apiClient.notifications.registerToken(token, platform).then(() => {
-          Alert.alert('Backend Success', 'Token saved to DB!');
+          console.log('Token saved to DB successfully');
         }).catch((err) => {
           Alert.alert('Backend Error', 'Failed to save token to DB: ' + err.message);
           console.error('Failed to register push token with backend:', err);
@@ -247,8 +247,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }
 
+  const contextValue = useMemo(() => ({
+    isAuthenticated, isLoading, user, login, signup, logout, updateProfile
+  }), [isAuthenticated, isLoading, user]);
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, signup, logout, updateProfile }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

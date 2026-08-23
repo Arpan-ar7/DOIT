@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
@@ -24,7 +25,7 @@ export default function EarningsScreen() {
   const totalEarned = completedByMe.reduce((sum, e) => sum + e.amount, 0);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <FlatList
         data={completedByMe}
         keyExtractor={(item) => item.id}
@@ -64,6 +65,10 @@ export default function EarningsScreen() {
           </View>
         )}
         ListEmptyComponent={<Text style={styles.emptyText}>No completed deliveries yet.</Text>}
+        initialNumToRender={8}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={true}
       />
     </SafeAreaView>
   );
@@ -71,7 +76,7 @@ export default function EarningsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
-  content: { paddingHorizontal: spacing.xl, paddingBottom: 40 },
+  content: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
   top: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
   h2: { fontSize: 22, fontWeight: '700', color: colors.ink },
   totalCard: {

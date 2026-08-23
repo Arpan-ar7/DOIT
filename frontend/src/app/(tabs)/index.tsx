@@ -1,5 +1,8 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, StatusBar as RNStatusBar } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, RefreshControl, Platform, ScrollView } from 'react-native';
+import ScalePressable from '../../components/ScalePressable';
+import AnimatedEmptyState from '../../components/AnimatedEmptyState';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +18,7 @@ const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { requests, loading, error, refresh } = useRequests();
   const [search, setSearch] = useState('');
@@ -69,7 +73,7 @@ export default function HomeScreen() {
   const initials = user?.name ? user.name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() : 'S';
 
   return (
-    <View style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <FlatList
         data={activeRequests}
         keyExtractor={(item) => item.id}
@@ -112,16 +116,16 @@ export default function HomeScreen() {
               )}
             </View>
 
-            <View style={styles.chipRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
               {CATEGORIES.map((c) => {
                 const active = category === c.key;
                 return (
-                  <Pressable key={c.key} style={[styles.chip, active && styles.chipActive]} onPress={() => setCategory(c.key)}>
+                  <ScalePressable key={c.key} style={[styles.chip, active && styles.chipActive]} onPress={() => setCategory(c.key)}>
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
-                  </Pressable>
+                  </ScalePressable>
                 );
               })}
-            </View>
+            </ScrollView>
 
             <Pressable style={[styles.outingBanner, isOut && styles.outingBannerActive]} onPress={toggleGoingOut}>
               <View style={styles.outingIcon}>
@@ -162,29 +166,29 @@ export default function HomeScreen() {
           loading ? (
             <ActivityIndicator style={{ marginTop: 30 }} color={colors.green} />
           ) : (
-            <View style={styles.empty}>
-              <Ionicons name="basket-outline" size={30} color={colors.muted} />
-              <Text style={styles.emptyTitle}>
-                {search || category !== 'all' ? 'No matching requests' : 'Nothing to help with right now'}
-              </Text>
-              <Text style={styles.emptySub}>
-                {search || category !== 'all' ? 'Try a different search or category.' : 'New requests will show up here as campus mates post them.'}
-              </Text>
-            </View>
+            <AnimatedEmptyState
+              icon="basket-outline"
+              title={search || category !== 'all' ? 'No matching requests' : 'Nothing to help with right now'}
+              subtitle={search || category !== 'all' ? 'Try a different search or category.' : 'New requests will show up here as campus mates post them.'}
+            />
           )
         }
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) + 80 }}
+        initialNumToRender={8}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={true}
       />
 
-      <Pressable style={styles.fab} onPress={() => router.push(routes.createRequest())}>
+      <ScalePressable style={[styles.fab, { bottom: Math.max(insets.bottom + 22, 22) + 80 }]} onPress={() => router.push(routes.createRequest())}>
         <Ionicons name="add" size={26} color="#fff" />
-      </Pressable>
-    </View>
+      </ScalePressable>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream, paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) : 0 },
+  safe: { flex: 1, backgroundColor: colors.cream },
   top: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greeting: { fontSize: 13, color: colors.muted, marginBottom: 4 },
   h1: { fontSize: 25, fontWeight: '700', color: colors.ink, letterSpacing: -0.8 },
@@ -195,7 +199,7 @@ const styles = StyleSheet.create({
   retryText: { fontSize: 11, fontWeight: '700', color: '#c14b30', textDecorationLine: 'underline' },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: spacing.xl, marginTop: 4, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 },
   searchInput: { flex: 1, fontSize: 13, color: colors.ink, padding: 0 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginHorizontal: spacing.xl, marginTop: 10 },
+  chipRow: { gap: 8, paddingHorizontal: spacing.xl, marginTop: 10 },
   chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line },
   chipActive: { backgroundColor: colors.green, borderColor: colors.green },
   chipText: { fontSize: 12, fontWeight: '700', color: colors.muted },

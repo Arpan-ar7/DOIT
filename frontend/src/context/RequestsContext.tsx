@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DeliveryRequest, RequestCategory, GoingTrip, initialGoingTrips, CATEGORY_EMOJIS } from '../constants/mockData';
 import { useAuth } from './AuthContext';
@@ -112,6 +112,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
       return uniqueRows.map((row) => mapApiRequest(row, profilesById));
     },
     enabled: isAuthenticated,
+    staleTime: 60000, // 1 minute
   });
 
   const error = queryError ? queryError.message : null;
@@ -239,15 +240,17 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     return requests.find((r) => r.id === id);
   }
 
+  const contextValue = useMemo(() => ({
+    requests, loading, error, refresh,
+    goingTrips,
+    createRequest, cancelRequest, acceptRequest, advanceStatus, rateRequest,
+    announceTrip, getRequestById,
+  }), [
+    requests, loading, error, refresh, goingTrips,
+  ]);
+
   return (
-    <RequestsContext.Provider
-      value={{
-        requests, loading, error, refresh,
-        goingTrips,
-        createRequest, cancelRequest, acceptRequest, advanceStatus, rateRequest,
-        announceTrip, getRequestById,
-      }}
-    >
+    <RequestsContext.Provider value={contextValue}>
       {children}
     </RequestsContext.Provider>
   );

@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import AnimatedEmptyState from '../../components/AnimatedEmptyState';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
@@ -17,7 +19,7 @@ export default function MessagesScreen() {
   const { conversations, loading } = useConversations(requests, user?.id ?? '');
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <FlatList
         data={conversations}
         keyExtractor={(item) => item.request.id}
@@ -61,13 +63,17 @@ export default function MessagesScreen() {
               <ActivityIndicator color={colors.green} />
             </View>
           ) : (
-            <View style={styles.empty}>
-              <Ionicons name="chatbubbles-outline" size={32} color={colors.muted} />
-              <Text style={styles.emptyTitle}>No conversations yet</Text>
-              <Text style={styles.emptySub}>Accept a request from Home to start chatting with a requester.</Text>
-            </View>
+            <AnimatedEmptyState
+              icon="chatbubbles-outline"
+              title="No conversations yet"
+              subtitle="Accept a request from Home to start chatting with a requester."
+            />
           )
         }
+        initialNumToRender={8}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={true}
       />
     </SafeAreaView>
   );
@@ -75,7 +81,7 @@ export default function MessagesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
-  content: { paddingHorizontal: spacing.xl, paddingBottom: 40, flexGrow: 1 },
+  content: { paddingHorizontal: spacing.xl, paddingBottom: 120, flexGrow: 1 },
   top: { paddingTop: spacing.lg, paddingBottom: spacing.md },
   h2: { fontSize: 22, fontWeight: '700', color: colors.ink },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 13, marginBottom: 9 },

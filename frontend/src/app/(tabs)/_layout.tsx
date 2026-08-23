@@ -1,4 +1,7 @@
 import { Tabs } from 'expo-router';
+import { BlurView } from 'expo-blur';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
@@ -12,13 +15,30 @@ export default function TabsLayout() {
   // an empty id, so this is a safe no-op.
   const { unreadCount } = useConversations(requests, user?.id ?? '');
 
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.green,
         tabBarInactiveTintColor: '#8a9898',
-        tabBarStyle: { height: 76, paddingBottom: 10, paddingTop: 8 },
+        tabBarStyle: {
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+          height: 60 + Math.max(insets.bottom, 10),
+          paddingBottom: Math.max(insets.bottom, 10),
+          paddingTop: 8,
+        },
+        tabBarBackground: () => (
+          <BlurView
+            tint="light"
+            intensity={80}
+            style={{ flex: 1 }}
+          />
+        ),
         tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
       }}
     >
