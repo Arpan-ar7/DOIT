@@ -5,6 +5,7 @@ import { isUsernameFormatValid, isUsernameTaken } from '../utils/username';
 import { Platform, Alert } from 'react-native';
 import { registerForPushNotificationsAsync } from '../lib/notifications';
 import { apiClient } from '../lib/apiClient';
+import { uploadProfilePicture } from '../lib/storage';
 
 export type AuthUser = {
   id: string; // real Supabase user id — needed later for creating requests
@@ -234,8 +235,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updates.name !== undefined && updates.name.trim() !== user.name) {
       dbUpdates.full_name = updates.name.trim();
     }
-    if (updates.photoUri !== undefined) {
-      dbUpdates.profile_picture = updates.photoUri;
+
+    // Upload profile picture to Supabase Storage if it's a local file.
+    if (updates.photoUri !== undefined && updates.photoUri !== null) {
+      const isLocalFile = !updates.photoUri.startsWith('http');
+      if (isLocalFile) {
+        try {
+          const publicUrl = await uploadProfilePicture(user.id, updates.photoUri);
+          updates = { ...updates, photoUri: publicUrl };
+          dbUpdates.profile_picture = publicUrl;
+        } catch (e: any) {
+          return { success: false, error: e.message || 'Failed to upload profile picture.' };
+        }
+      } else {
+        dbUpdates.profile_picture = updates.photoUri;
+      }
+    } else if (updates.photoUri === null) {
+      dbUpdates.profile_picture = null;
     }
 
     if (Object.keys(dbUpdates).length > 0) {
