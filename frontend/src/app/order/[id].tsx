@@ -60,6 +60,7 @@ export default function OrderStatusScreen() {
   const showAccepterCard = isRequester && !!request.accepter;
 
   async function handleComplete() {
+    if (!request) return;
     setActionError('');
     setCompleting(true);
     const result = await advanceStatus(request.id);
@@ -68,6 +69,7 @@ export default function OrderStatusScreen() {
   }
 
   async function handleRate(score: number) {
+    if (!request) return;
     if (rating) return;
     setActionError('');
     setRating(true);

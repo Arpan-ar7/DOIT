@@ -1,0 +1,2 @@
+src/components/CustomTabBar.tsx(31,46): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/components/CustomTabBar.tsx(36,29): error TS7006: Parameter 'route' implicitly has an 'any' type.

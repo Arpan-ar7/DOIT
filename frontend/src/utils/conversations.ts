@@ -1,4 +1,4 @@
-import { ChatMessage } from '../context/RequestsContext';
+import { ChatMessage } from '../lib/apiClient';
 import { DeliveryRequest } from '../constants/mockData';
 
 export type Conversation = {
@@ -20,10 +20,10 @@ export function getConversations(
     .map((r) => {
       const messages = messagesByRequest[r.id] ?? [];
       const lastMessage = messages[messages.length - 1];
-      const unread = !!lastMessage && !lastMessage.fromMe && lastMessage.createdAt > (readStatus[r.id] ?? 0);
+      const unread = !!lastMessage && lastMessage.sender_id !== currentUserId && new Date(lastMessage.created_at).getTime() > (readStatus[r.id] ?? 0);
       return { request: r, lastMessage, unread };
     })
-    .sort((a, b) => (b.lastMessage?.createdAt ?? 0) - (a.lastMessage?.createdAt ?? 0));
+    .sort((a, b) => (b.lastMessage ? new Date(b.lastMessage.created_at).getTime() : 0) - (a.lastMessage ? new Date(a.lastMessage.created_at).getTime() : 0));
 }
 
 export function getUnreadCount(conversations: Conversation[]) {

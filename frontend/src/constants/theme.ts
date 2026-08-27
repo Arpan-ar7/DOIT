@@ -14,6 +14,26 @@ export const colors = {
   blue: '#e8f3ff',
 };
 
+/** Horror palette — Late Night Cravings section only */
+export const horror = {
+  bg: '#141414',
+  surface: '#1f1f1f',
+  surfaceLight: '#2e2424',
+  red: '#c0392b',
+  redBright: '#e74c3c',
+  redGlow: '#ff6b6b',
+  redDark: '#8b1a1a',
+  accent: '#ff4444',
+  white: '#f5f5f5',
+  offWhite: '#e0d8d8',
+  muted: '#888080',
+  textPrimary: '#f5f5f5',
+  textSecondary: '#b0a8a8',
+  border: '#3a2a2a',
+  cardBg: '#1e1c1c',
+  orange: '#e67e22',
+};
+
 export const radius = {
   sm: 12,
   md: 16,

@@ -10,4 +10,7 @@ export const routes = {
   requestDetails: (id: string) => `/request/${id}` as const,
   chat: (id: string) => `/chat/${id}` as const,
   orderStatus: (id: string) => `/order/${id}` as const,
+  cravings: () => '/cravings' as const,
+  createCraving: () => '/craving/create' as const,
+  cravingDetail: (id: string) => `/craving/${id}` as const,
 };

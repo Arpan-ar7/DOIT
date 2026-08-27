@@ -270,3 +270,41 @@ export const TAKEN_USERNAMES: string[] = [
   'support',
   'campuscarry',
 ];
+
+// ── Late Night Cravings ──────────────────────────────────
+
+export const HOSTEL_OPTIONS = ['Hostel A', 'Hostel B', 'Hostel C', 'Hostel D', 'Other'] as const;
+export type HostelOption = (typeof HOSTEL_OPTIONS)[number];
+
+export type CravingStatus = 'open' | 'accepted' | 'done';
+
+export type CravingPost = {
+  id: string;
+  what: string;           // "Maggi packet", "Cold coffee"
+  hostel: string;         // from HOSTEL_OPTIONS or freetext for "Other"
+  price: number;          // bribe money 💰
+  note: string;           // ransom note 📝
+  status: CravingStatus;
+  postedBy: {
+    id: string;
+    name: string;
+    initials: string;
+  };
+  acceptedBy?: {
+    id: string;
+    name: string;
+    initials: string;
+  };
+  createdAt: string;      // ISO string
+};
+
+/** Funky CTA labels for the cravings section */
+export const CRAVING_LABELS = {
+  accept: ['🔥 Rescue the Homie', '👀 I Got You Fam', '💀 I\'ll Save You', '🦸 On My Way Bruh'],
+  post: '🚨 Unleash My Craving',
+  fab: '🍜 SOS — I\'m Starving',
+  emptyTitle: 'No fellow night owls yet...',
+  emptySub: 'Be the first to scream for food! 🦇',
+  headerTitle: '🌙 Midnight Munchies',
+  headerSub: 'starving at 3AM? drop your craving, someone\'s got your back 👻',
+} as const;

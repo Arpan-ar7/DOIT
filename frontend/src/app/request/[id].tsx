@@ -44,6 +44,7 @@ export default function RequestDetailsScreen() {
   const categoryLabel = CATEGORIES.find((c) => c.key === request.category)?.label ?? 'Other';
 
   async function handleAccept() {
+    if (!request) return;
     setActionError('');
     setAccepting(true);
     const result = await acceptRequest(request.id);
@@ -56,6 +57,7 @@ export default function RequestDetailsScreen() {
   }
 
   async function handleCancel() {
+    if (!request) return;
     setActionError('');
     setCancelling(true);
     const result = await cancelRequest(request.id);

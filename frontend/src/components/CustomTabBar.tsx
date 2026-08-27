@@ -2,28 +2,41 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../constants/theme';
+import { colors, horror } from '../constants/theme';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-const ICON_MAP: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
+type TabMeta = {
+  active: keyof typeof Ionicons.glyphMap;
+  inactive: keyof typeof Ionicons.glyphMap;
+  activeColor?: string;   // override bubble color per tab
+  glowColor?: string;     // override glow/shadow color
+};
+
+const ICON_MAP: Record<string, TabMeta> = {
   index: { active: 'home', inactive: 'home-outline' },
   orders: { active: 'receipt', inactive: 'receipt-outline' },
+  cravings: {
+    active: 'moon',
+    inactive: 'moon-outline',
+    activeColor: horror.red,
+    glowColor: horror.redGlow,
+  },
   messages: { active: 'chatbubble', inactive: 'chatbubble-outline' },
 };
 
-const ACTIVE_BUBBLE = 52;
+const ACTIVE_BUBBLE = 46;
 
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const visibleRoutes = state.routes.filter((r) => ICON_MAP[r.name]);
+  const visibleRoutes = state.routes.filter((r: any) => ICON_MAP[r.name]);
 
   return (
     <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 8) }]}>  
       <View style={styles.bar}>
-        {visibleRoutes.map((route) => {
+        {visibleRoutes.map((route: any) => {
           const realIndex = state.routes.indexOf(route);
           const focused = state.index === realIndex;
-          const icons = ICON_MAP[route.name];
+          const meta = ICON_MAP[route.name];
           const options = descriptors[route.key].options;
           const label = (options.title ?? route.name) as string;
           const badge = options.tabBarBadge;
@@ -32,9 +45,11 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
             <TabItem
               key={route.key}
               focused={focused}
-              iconName={focused ? icons.active : icons.inactive}
+              iconName={focused ? meta.active : meta.inactive}
               label={label}
               badge={badge as number | undefined}
+              bubbleColor={meta.activeColor}
+              glowColor={meta.glowColor}
               onPress={() => {
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                 if (!focused && !event.defaultPrevented) {
@@ -55,6 +70,8 @@ function TabItem({
   iconName,
   label,
   badge,
+  bubbleColor,
+  glowColor,
   onPress,
   onLongPress,
 }: {
@@ -62,6 +79,8 @@ function TabItem({
   iconName: keyof typeof Ionicons.glyphMap;
   label: string;
   badge?: number;
+  bubbleColor?: string;
+  glowColor?: string;
   onPress: () => void;
   onLongPress: () => void;
 }) {
@@ -77,20 +96,36 @@ function TabItem({
   }, [focused]);
 
   const bubbleScale = scale.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
-  const bubbleTranslate = scale.interpolate({ inputRange: [0, 1], outputRange: [0, -18] });
+  const bubbleTranslate = scale.interpolate({ inputRange: [0, 1], outputRange: [0, -16] });
+
+  const activeBg = bubbleColor ?? colors.green;
+  const activeGlow = glowColor ?? colors.green;
+  const activeLabelColor = bubbleColor ?? colors.green;
 
   return (
     <Pressable style={styles.tab} onPress={onPress} onLongPress={onLongPress} accessibilityRole="button">
       <Animated.View
         style={[
           styles.bubble,
-          focused && styles.bubbleActive,
+          focused && [styles.bubbleActive, {
+            backgroundColor: activeBg,
+            ...Platform.select({
+              web: { boxShadow: `0px 4px 12px ${activeGlow}59` },
+              default: {
+                shadowColor: activeGlow,
+                shadowOpacity: 0.35,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 8,
+              },
+            }),
+          }],
           {
             transform: [{ scale: bubbleScale }, { translateY: bubbleTranslate }],
           },
         ]}
       >
-        <Ionicons name={iconName} size={focused ? 24 : 22} color={focused ? '#fff' : '#8a9898'} />
+        <Ionicons name={iconName} size={focused ? 22 : 20} color={focused ? '#fff' : '#8a9898'} />
         {!!badge && badge > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
@@ -100,9 +135,10 @@ function TabItem({
       <Text
         style={[
           styles.label,
-          focused && styles.labelActive,
-          { transform: [{ translateY: focused ? -12 : 0 }] },
+          focused && [styles.labelActive, { color: activeLabelColor }],
+          { transform: [{ translateY: focused ? -10 : 0 }] },
         ]}
+        numberOfLines={1}
       >
         {label}
       </Text>
@@ -117,14 +153,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   bar: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    borderRadius: 28,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    borderRadius: 26,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     width: '100%',
     justifyContent: 'space-around',
     alignItems: 'center',
@@ -154,26 +190,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bubbleActive: {
-    backgroundColor: colors.green,
-    ...Platform.select({
-      web: { boxShadow: '0px 4px 12px rgba(30,120,80,0.35)' },
-      default: {
-        shadowColor: colors.green,
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 8,
-      },
-    }),
+    // default bg/shadow set inline per-tab
   },
   label: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
     color: '#8a9898',
     marginTop: 2,
   },
   labelActive: {
-    color: colors.green,
     fontWeight: '800',
   },
   badge: {
@@ -194,3 +219,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
