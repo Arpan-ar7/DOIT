@@ -12,6 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { CATEGORIES, RequestCategory, isExpired } from '../../constants/mockData';
 import { routes } from '../../constants/routes';
 import RequestCard from '../../components/RequestCard';
+import Avatar from '../../components/Avatar';
 
 const GOING_OUT_KEY = 'going_out_timestamp';
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
@@ -87,8 +88,8 @@ export default function HomeScreen() {
                 <Text style={styles.greeting}>Good afternoon, {firstName}</Text>
                 <Text style={styles.h1}>What can you carry?</Text>
               </View>
-              <Pressable style={styles.avatar} onPress={() => router.push(routes.profile())}>
-                <Text style={styles.avatarText}>{initials}</Text>
+              <Pressable onPress={() => router.push(routes.profile())}>
+                <Avatar initials={initials} imageUri={user?.photoUri} size={42} />
               </Pressable>
             </View>
 

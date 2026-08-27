@@ -16,7 +16,7 @@ export default function Avatar({
   textColor = '#0e5545',
   imageUri,
 }: Props) {
-  const radius = size * 0.34;
+  const radius = size / 2;
 
   if (imageUri) {
     return <Image source={{ uri: imageUri }} style={{ width: size, height: size, borderRadius: radius }} />;
