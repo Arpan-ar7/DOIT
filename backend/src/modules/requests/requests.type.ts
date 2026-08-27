@@ -24,6 +24,7 @@ export const createRequestSchema = z.object({
   pickup_location: z.string().min(1, 'pickup_location is required'),
   dropoff_location: z.string().min(1, 'dropoff_location is required'),
   needed_by: z.string().datetime().optional(),
+  is_late_night_craving: z.boolean().default(false),
 });
 export type CreateRequestInput = z.infer<typeof createRequestSchema>;
 
@@ -69,6 +70,7 @@ export interface RequestRecord {
   payment_status: string;
   payment_method: string | null;
   cancellation_reason: string | null;
+  is_late_night_craving: boolean;
   created_at: string;
   updated_at: string;
 }

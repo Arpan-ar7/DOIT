@@ -55,6 +55,7 @@ export async function createRequest(
       pickup_location: payload.pickup_location,
       dropoff_location: payload.dropoff_location,
       needed_by: payload.needed_by ?? null,
+      is_late_night_craving: payload.is_late_night_craving ?? false,
     })
     .select()
     .single();
