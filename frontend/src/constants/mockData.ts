@@ -49,6 +49,7 @@ export type Accepter = {
   completedRequests: number;
   phone: string;
   sharePhone: boolean;
+  photoUri?: string | null;
 };
 
 export type DeliveryRequest = {
@@ -64,6 +65,7 @@ export type DeliveryRequest = {
   expiresAt: string;
   status: RequestStatus;
   rating?: number;
+  isLateNightCraving?: boolean;
   requester: {
     id: string;
     name: string;
@@ -71,6 +73,7 @@ export type DeliveryRequest = {
     hostel: string;
     rating: number;
     completedRequests: number;
+    photoUri?: string | null;
   };
   accepterId?: string;
   accepter?: Accepter; // NEW — populated once accepted; undefined until then

@@ -115,7 +115,7 @@ export default function RequestDetailsScreen() {
         </View>
 
         <View style={styles.requester}>
-          <Avatar initials={request.requester.initials} size={39} backgroundColor="#f6d8ca" textColor="#a04d2d" />
+          <Avatar initials={request.requester.initials} imageUri={request.requester.photoUri} size={39} backgroundColor="#f6d8ca" textColor="#a04d2d" />
           <View style={{ flex: 1 }}>
             <Text style={styles.requesterName}>{request.requester.name}</Text>
             <Text style={styles.requesterSub}>★ {request.requester.rating.toFixed(1)} · {request.requester.completedRequests} ratings</Text>

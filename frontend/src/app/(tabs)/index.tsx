@@ -13,9 +13,18 @@ import { CATEGORIES, RequestCategory, isExpired } from '../../constants/mockData
 import { routes } from '../../constants/routes';
 import RequestCard from '../../components/RequestCard';
 import Avatar from '../../components/Avatar';
+import { supabase } from '../../lib/supabase';
 
 const GOING_OUT_KEY = 'going_out_timestamp';
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'Good morning';
+  if (h >= 12 && h < 17) return 'Good afternoon';
+  if (h >= 17 && h < 21) return 'Good evening';
+  return 'Good night';
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -27,6 +36,20 @@ export default function HomeScreen() {
 
   // ── Going-out toggle state ──
   const [isOut, setIsOut] = useState(false);
+  const [goingOutCount, setGoingOutCount] = useState(0);
+
+  const fetchGoingOutCount = useCallback(async () => {
+    try {
+      const now = new Date().toISOString();
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .gt('going_out_until', now);
+      setGoingOutCount(count ?? 0);
+    } catch (_) {
+      // Column may not exist yet — gracefully ignore
+    }
+  }, []);
 
   const checkGoingOutStatus = useCallback(async () => {
     try {
@@ -41,16 +64,22 @@ export default function HomeScreen() {
     } catch (_) {}
   }, []);
 
-  useEffect(() => { checkGoingOutStatus(); }, [checkGoingOutStatus]);
+  useEffect(() => { checkGoingOutStatus(); fetchGoingOutCount(); }, [checkGoingOutStatus, fetchGoingOutCount]);
 
   async function toggleGoingOut() {
     if (isOut) {
       await AsyncStorage.removeItem(GOING_OUT_KEY);
       setIsOut(false);
+      // Clear going_out_until on profile
+      await supabase.from('profiles').update({ going_out_until: null }).eq('id', user?.id ?? '');
     } else {
+      const until = new Date(Date.now() + TWELVE_HOURS_MS).toISOString();
       await AsyncStorage.setItem(GOING_OUT_KEY, Date.now().toString());
       setIsOut(true);
+      // Set going_out_until on profile
+      await supabase.from('profiles').update({ going_out_until: until }).eq('id', user?.id ?? '');
     }
+    await fetchGoingOutCount();
   }
 
   // CHANGED — CURRENT_USER.id -> the REAL logged-in user's id.
@@ -59,6 +88,7 @@ export default function HomeScreen() {
   const activeRequests = useMemo(() => {
     return requests.filter((r) => {
       if (r.requester.id === user?.id) return false;
+      if (r.isLateNightCraving) return false;
       if (r.status !== 'pending') return false;
       if (isExpired(r.expiresAt)) return false;
       if (category !== 'all' && r.category !== category) return false;
@@ -85,7 +115,7 @@ export default function HomeScreen() {
           <>
             <View style={styles.top}>
               <View>
-                <Text style={styles.greeting}>Good afternoon, {firstName}</Text>
+                <Text style={styles.greeting}>{getGreeting()}, {firstName}</Text>
                 <Text style={styles.h1}>What can you carry?</Text>
               </View>
               <Pressable onPress={() => router.push(routes.profile())}>
@@ -129,17 +159,27 @@ export default function HomeScreen() {
             </ScrollView>
 
             <Pressable style={[styles.outingBanner, isOut && styles.outingBannerActive]} onPress={toggleGoingOut}>
-              <View style={styles.outingIcon}>
-                <Ionicons name={isOut ? 'checkmark-circle' : 'walk-outline'} size={20} color="#fff" />
+              {/* Top row: icon + text + button */}
+              <View style={styles.outingTopRow}>
+                <View style={styles.outingIcon}>
+                  <Ionicons name={isOut ? 'checkmark-circle' : 'walk-outline'} size={20} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.outingTitle}>{isOut ? 'You are currently out' : 'Going out?'}</Text>
+                  <Text style={styles.outingSub}>
+                    {isOut ? 'Tap to mark yourself as back' : 'Tap to let others know you\'re heading out'}
+                  </Text>
+                </View>
+                <View style={styles.outingBtn}>
+                  <Text style={styles.outingBtnText}>{isOut ? "I'm back" : "I'm going out"}</Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.outingTitle}>{isOut ? 'You are currently out' : 'Going out?'}</Text>
-                <Text style={styles.outingSub}>
-                  {isOut ? 'Tap to mark yourself as back' : 'Tap to let others know you\'re heading out'}
+              {/* Bottom count bar */}
+              <View style={styles.outingCountBar}>
+                <Ionicons name="people" size={13} color="#fff" style={{ opacity: 0.85 }} />
+                <Text style={styles.outingCountBarText}>
+                  {goingOutCount > 0 ? `${goingOutCount} people outside right now` : 'No one is outside right now'}
                 </Text>
-              </View>
-              <View style={styles.outingBtn}>
-                <Text style={styles.outingBtnText}>{isOut ? "I'm back" : "I'm going out"}</Text>
               </View>
             </Pressable>
 
@@ -205,11 +245,14 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.green, borderColor: colors.green },
   chipText: { fontSize: 12, fontWeight: '700', color: colors.muted },
   chipTextActive: { color: '#fff' },
-  outingBanner: { backgroundColor: colors.green, borderRadius: radius.md, padding: 16, marginHorizontal: spacing.xl, marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  outingBanner: { backgroundColor: colors.green, borderRadius: radius.md, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 0, marginHorizontal: spacing.xl, marginTop: 14, flexDirection: 'column', gap: 0 },
   outingBannerActive: { backgroundColor: '#2d8a62' },
+  outingTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 12 },
   outingIcon: { width: 39, height: 39, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   outingTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
   outingSub: { color: '#fff', opacity: 0.8, fontSize: 12, marginTop: 3 },
+  outingCountBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.18)', borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md, marginHorizontal: -16, paddingHorizontal: 16, paddingVertical: 9 },
+  outingCountBarText: { color: '#fff', fontSize: 13, fontWeight: '800' },
   outingBtn: { backgroundColor: '#fff', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
   outingBtnText: { color: colors.greenDark, fontSize: 12, fontWeight: '800' },
   sectionHead: { paddingHorizontal: spacing.xl, marginTop: 25, marginBottom: 13 },

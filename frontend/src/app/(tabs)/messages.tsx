@@ -16,7 +16,7 @@ export default function MessagesScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { requests } = useRequests();
-  const { conversations, loading } = useConversations(requests, user?.id ?? '');
+  const { conversations, loading, clearUnread } = useConversations(requests, user?.id ?? '');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -35,8 +35,20 @@ export default function MessagesScreen() {
               ? item.request.accepter?.initials ?? '?'
               : item.request.requester.initials;
           return (
-            <Pressable style={styles.row} onPress={() => router.push(routes.chat(item.request.id))}>
-              <Avatar initials={otherInitials} backgroundColor="#f7d5c7" textColor="#994327" />
+            <Pressable style={styles.row} onPress={() => {
+              clearUnread(item.request.id);
+              router.push(routes.chat(item.request.id));
+            }}>
+              <Avatar
+                initials={otherInitials}
+                imageUri={
+                  user?.id === item.request.requester.id
+                    ? item.request.accepter?.photoUri
+                    : item.request.requester.photoUri
+                }
+                backgroundColor="#f7d5c7"
+                textColor="#994327"
+              />
               <View style={{ flex: 1 }}>
                 <View style={styles.rowTop}>
                   <View style={styles.nameRow}>

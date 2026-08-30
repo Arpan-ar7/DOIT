@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Pressable, Animated, Platform,
-  RefreshControl, Image, ImageBackground,
+  ScrollView, RefreshControl, Image, ImageBackground,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { horror, spacing, radius } from '../../constants/theme';
 import { CRAVING_LABELS, CravingPost } from '../../constants/mockData';
 import { useCravings } from '../../context/CravingsContext';
@@ -14,9 +15,7 @@ import { routes } from '../../constants/routes';
 import ScalePressable from '../../components/ScalePressable';
 
 // @ts-ignore
-import bannerImg from '../../assets/horror/banner.png';
-// @ts-ignore
-import batImg from '../../assets/horror/bat.png';
+import bannerImg from '../../assets/horror/banner.jpg';
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -149,50 +148,49 @@ export default function CravingsScreen() {
   }, [cravings]);
 
   return (
-    <View style={styles.safe}>
-      <SafeAreaView edges={['top']} style={{ backgroundColor: horror.bg }}>
-        {/* Banner with bats */}
-        <ImageBackground source={bannerImg} style={styles.bannerBg} resizeMode="cover">
-          <View style={styles.bannerOverlay}>
-            <View style={styles.headerRow}>
-              <FlickerTitle />
-              <Image source={batImg} style={styles.batIcon} resizeMode="contain" />
-            </View>
-            <Text style={styles.headerSub}>{CRAVING_LABELS.headerSub}</Text>
+    <ImageBackground source={bannerImg} style={styles.safe} resizeMode="cover">
+      <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
+        <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.sm }}>
+          <View style={styles.headerRow}>
+            <FlickerTitle />
+            <MaterialCommunityIcons name="bat" size={32} color={horror.redBright} style={styles.batIcon} />
           </View>
-        </ImageBackground>
+          <Text style={styles.headerSub}>{CRAVING_LABELS.headerSub}</Text>
+        </View>
       </SafeAreaView>
 
-      <FlatList
-        data={feed}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={horror.redGlow} colors={[horror.redBright]} />
-        }
-        renderItem={({ item }) => (
-          <View style={styles.listPad}>
-            <CravingCard
-              item={item}
-              isOwn={item.postedBy.id === user?.id}
-              onAccept={async () => {
-                await acceptCraving(item.id);
-              }}
-              onPress={() => router.push(routes.cravingDetail(item.id) as any)}
-            />
-          </View>
-        )}
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.emptyWrap}>
-              <Image source={batImg} style={styles.emptyBat} resizeMode="contain" />
-              <Text style={styles.emptyTitle}>{CRAVING_LABELS.emptyTitle}</Text>
-              <Text style={styles.emptySub}>{CRAVING_LABELS.emptySub}</Text>
+      <BlurView intensity={40} tint="dark" style={{ flex: 1 }}>
+        <FlatList
+          data={feed}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={horror.redGlow} colors={[horror.redBright]} />
+          }
+          renderItem={({ item }) => (
+            <View style={styles.listPad}>
+              <CravingCard
+                item={item}
+                isOwn={item.postedBy.id === user?.id}
+                onAccept={async () => {
+                  await acceptCraving(item.id);
+                }}
+                onPress={() => router.push(routes.cravingDetail(item.id) as any)}
+              />
             </View>
-          ) : null
-        }
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 24) + 100 }}
-        style={{ backgroundColor: horror.bg }}
-      />
+          )}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.emptyWrap}>
+                <MaterialCommunityIcons name="bat" size={80} color={horror.redBright} style={styles.emptyBat} />
+                <Text style={styles.emptyTitle}>{CRAVING_LABELS.emptyTitle}</Text>
+                <Text style={styles.emptySub}>{CRAVING_LABELS.emptySub}</Text>
+              </View>
+            ) : null
+          }
+          contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: Math.max(insets.bottom, 24) + 100 }}
+          style={{ backgroundColor: 'transparent' }}
+        />
+      </BlurView>
 
       <ScalePressable
         style={[styles.fab, { bottom: Math.max(insets.bottom + 22, 22) + 80 }]}
@@ -201,7 +199,7 @@ export default function CravingsScreen() {
         <Ionicons name="flame-outline" size={22} color="#fff" />
         <Text style={styles.fabText}>{CRAVING_LABELS.fab}</Text>
       </ScalePressable>
-    </View>
+    </ImageBackground>
   );
 }
 

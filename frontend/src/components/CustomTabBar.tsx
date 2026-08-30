@@ -30,9 +30,11 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
   const insets = useSafeAreaInsets();
   const visibleRoutes = state.routes.filter((r: any) => ICON_MAP[r.name]);
 
+  const isHorror = state.routes[state.index].name === 'cravings';
+
   return (
     <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 8) }]}>  
-      <View style={styles.bar}>
+      <View style={[styles.bar, isHorror && { backgroundColor: horror.cardBg }]}>
         {visibleRoutes.map((route: any) => {
           const realIndex = state.routes.indexOf(route);
           const focused = state.index === realIndex;

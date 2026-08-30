@@ -17,6 +17,7 @@ export type ApiRequestRow = {
   requester_id: string;
   deliverer_id: string | null;
   status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'expired';
+  is_late_night_craving?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -29,6 +30,8 @@ export type CreateRequestBody = {
   notes?: string;
   pickup_location: string;
   dropoff_location: string;
+  expires_at?: string;   // ISO string computed from selected expiryHours
+  expiry_hours?: number; // raw hours — backend uses this as guaranteed expiry source
 };
 
 export function createRequestApi(body: CreateRequestBody) {

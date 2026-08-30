@@ -53,7 +53,19 @@ export default function SettingsScreen() {
       quality: 0.7,
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
-      setPhotoUri(result.assets[0].uri);
+      const uri = result.assets[0].uri;
+      setPhotoUri(uri);
+      // Auto-save immediately when photo is cropped — so "Crop" = set as profile pic
+      setSaving(true);
+      setSaveError('');
+      const res = await updateProfile({ name: name.trim() || user?.name || '', photoUri: uri });
+      setSaving(false);
+      if (!res.success) {
+        setSaveError(res.error ?? 'Could not save profile picture.');
+      } else {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2500);
+      }
     }
   }
 
@@ -109,7 +121,7 @@ export default function SettingsScreen() {
             </View>
 
             <Text style={styles.label}>Full name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor="#9ba6a0" />
 
             <Text style={styles.label}>Username</Text>
             <View style={styles.usernameRow}>
@@ -120,6 +132,7 @@ export default function SettingsScreen() {
                 onChangeText={setUsername}
                 autoCapitalize="none"
                 placeholder="username"
+                placeholderTextColor="#9ba6a0"
               />
             </View>
             {trimmedUsername.length > 0 && (

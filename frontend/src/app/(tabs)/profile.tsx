@@ -36,15 +36,15 @@ export default function ProfileScreen() {
 
           <View style={styles.stats}>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{CURRENT_USER.rating > 0 ? `${CURRENT_USER.rating} ★` : '– ★'}</Text>
+              <Text style={styles.statValue}>{(user?.rating ?? 0) > 0 ? `${user!.rating.toFixed(1)} ★` : '– ★'}</Text>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{CURRENT_USER.deliveries}</Text>
+              <Text style={styles.statValue}>{user?.totalRatings ?? 0}</Text>
               <Text style={styles.statLabel}>Deliveries</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{CURRENT_USER.earned > 0 ? `₹${CURRENT_USER.earned}` : '₹0'}</Text>
+              <Text style={styles.statValue}>₹0</Text>
               <Text style={styles.statLabel}>Earned</Text>
             </View>
           </View>

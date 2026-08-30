@@ -16,6 +16,8 @@ export type AuthUser = {
   username: string; // local-only, see note above
   hostel: string; // local-only, see note above
   photoUri: string | null;
+  rating: number;
+  totalRatings: number;
 };
 
 type ProfileUpdates = {
@@ -63,6 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       username: deriveUsername(profile.full_name), // not persisted, see note
       hostel: '', // not persisted, see note
       photoUri: profile.profile_picture ?? null,
+      rating: profile.average_rating ?? 0,
+      totalRatings: profile.total_ratings ?? 0,
     });
   }
 

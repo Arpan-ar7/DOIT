@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import ScalePressable from './ScalePressable';
+import Avatar from './Avatar';
 import { colors, radius, shadow } from '../constants/theme';
 import { DeliveryRequest, isExpired, STATUS_LABELS } from '../constants/mockData';
 import { minutesLeftLabel } from '../utils/time';
@@ -69,11 +70,15 @@ const RequestCard = memo(function RequestCard({ request, onPress }: Props) {
 
       <View style={styles.footer}>
         <View style={styles.person}>
-          <View style={styles.miniAvatar}>
-            <Text style={styles.miniAvatarText}>{request.requester.initials}</Text>
-          </View>
+          <Avatar
+            initials={request.requester.initials}
+            imageUri={request.requester.photoUri}
+            size={23}
+            backgroundColor="#f7d5c7"
+            textColor="#994327"
+          />
           <Text style={styles.personText} numberOfLines={1}>
-            {request.requester.name} · {request.requester.hostel}
+            {request.requester.name}
           </Text>
         </View>
         <View style={[styles.tag, tagStyles[tagVariant]]}>
@@ -141,15 +146,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   person: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1 },
-  miniAvatar: {
-    width: 23,
-    height: 23,
-    borderRadius: 12,
-    backgroundColor: '#f7d5c7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniAvatarText: { fontSize: 9, fontWeight: '800', color: '#994327' },
   personText: { fontSize: 12, color: '#526266', flexShrink: 1 },
   tag: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
   tagText: { fontSize: 11, fontWeight: '700' },

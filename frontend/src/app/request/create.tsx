@@ -75,18 +75,18 @@ export default function CreateRequestScreen() {
             </View>
 
             <Text style={styles.label}>What do you need?</Text>
-            <TextInput style={styles.input} placeholder="e.g. Chicken Biryani, Notebook, Paracetamol" value={itemName} onChangeText={setItemName} />
+            <TextInput style={styles.input} placeholder="e.g. Chicken Biryani, Notebook, Paracetamol" placeholderTextColor={colors.muted} value={itemName} onChangeText={setItemName} />
 
             <Text style={styles.label}>Shop or place (optional)</Text>
-            <TextInput style={styles.input} placeholder="e.g. Madras Café, Reliance Fresh" value={shop} onChangeText={setShop} />
+            <TextInput style={styles.input} placeholder="e.g. Madras Café, Reliance Fresh" placeholderTextColor={colors.muted} value={shop} onChangeText={setShop} />
 
             <Text style={styles.label}>Delivery location</Text>
-            <TextInput style={styles.input} placeholder="e.g. Girls Hostel, Main Gate" value={deliveryLocation} onChangeText={setDeliveryLocation} />
+            <TextInput style={styles.input} placeholder="e.g. Girls Hostel, Main Gate" placeholderTextColor={colors.muted} value={deliveryLocation} onChangeText={setDeliveryLocation} />
 
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>Approx item budget (₹)</Text>
-                <TextInput style={styles.input} placeholder="e.g. 200" keyboardType="number-pad" value={itemBudget} onChangeText={setItemBudget} />
+                <TextInput style={styles.input} placeholder="e.g. 200" placeholderTextColor={colors.muted} keyboardType="number-pad" value={itemBudget} onChangeText={setItemBudget} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={styles.labelRow}>
@@ -107,7 +107,7 @@ export default function CreateRequestScreen() {
             )}
 
             <Text style={styles.label}>Notes for your delivery partner (optional)</Text>
-            <TextInput style={[styles.input, styles.textarea]} placeholder="e.g. Extra spicy, Brand: Classmate, Qty: 2" value={notes} onChangeText={setNotes} multiline />
+            <TextInput style={[styles.input, styles.textarea]} placeholder="e.g. Extra spicy, Brand: Classmate, Qty: 2" placeholderTextColor={colors.muted} value={notes} onChangeText={setNotes} multiline />
 
             <Text style={styles.label}>Expires in</Text>
             <View style={styles.expiryChipRow}>

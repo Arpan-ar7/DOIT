@@ -67,6 +67,7 @@ function mapApiRequest(row: ApiRequestRow, profilesById: Record<string, ProfileR
     expiresAt: row.expires_at,
     // 'expired' isn't actually written by anything yet (no scheduled job
     // exists on the backend) — treat it as pending, let isExpired() handle it.
+    isLateNightCraving: row.is_late_night_craving || false,
     status: row.status === 'expired' ? 'pending' : row.status,
     requester: {
       id: row.requester_id,
@@ -75,6 +76,7 @@ function mapApiRequest(row: ApiRequestRow, profilesById: Record<string, ProfileR
       hostel: '', // no hostel column in the DB yet
       rating: requesterProfile?.average_rating ?? 0,
       completedRequests: requesterProfile?.total_ratings ?? 0, // approximation
+      photoUri: requesterProfile?.profile_picture ?? null,
     },
     accepterId: row.deliverer_id ?? undefined,
     accepter: delivererProfile
@@ -85,6 +87,7 @@ function mapApiRequest(row: ApiRequestRow, profilesById: Record<string, ProfileR
           completedRequests: delivererProfile.total_ratings,
           phone: '', // phone-sharing removed, per your last message
           sharePhone: false,
+          photoUri: delivererProfile.profile_picture ?? null,
         }
       : undefined,
   };
@@ -163,14 +166,17 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
 
   async function createRequest(input: NewRequestInput): Promise<ActionResult> {
     try {
+      const expiresAt = new Date(Date.now() + input.expiryHours * 3600_000).toISOString();
       await createRequestApi({
         item_name: input.itemName,
         category: input.category,
         approximate_price: input.itemBudget,
         delivery_fee: input.deliveryFee,
         notes: input.notes || undefined,
-        pickup_location: input.shop || 'Not specified', // required by the DB; our UI made it optional
+        pickup_location: input.shop || 'Not specified',
         dropoff_location: input.deliveryLocation,
+        expires_at: expiresAt,
+        expiry_hours: input.expiryHours, // backend uses this as the authoritative source
       });
       await refresh();
       return { success: true };

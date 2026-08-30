@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Platform, StatusBar as RNStatusBar }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
+import { supabase } from '../../lib/supabase';
 
 const STORAGE_KEY = 'going_out_timestamp';
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
@@ -40,15 +41,22 @@ export default function GoingOutScreen() {
 
   async function handleGoingOut() {
     const now = Date.now();
+    const until = new Date(now + TWELVE_HOURS_MS).toISOString();
     await AsyncStorage.setItem(STORAGE_KEY, now.toString());
     setIsOut(true);
     setSince(new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (uid) await supabase.from('profiles').update({ going_out_until: until }).eq('id', uid);
   }
 
   async function handleBack() {
     await AsyncStorage.removeItem(STORAGE_KEY);
     setIsOut(false);
     setSince(null);
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (uid) await supabase.from('profiles').update({ going_out_until: null }).eq('id', uid);
   }
 
   if (loading) return <View style={styles.safe} />;
