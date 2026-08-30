@@ -9,10 +9,10 @@ import {
   acceptRequestApi,
   cancelRequestApi,
   completeRequestApi,
-  submitRatingApi,
   ApiRequestRow,
 } from '../lib/requestsApi';
 import { getProfilesByIds, initialsFromName, ProfileRow } from '../lib/profilesApi';
+import { getRatingsForRequests, submitRatingApi } from '../lib/ratingsApi';
 import { supabase } from '../lib/supabase';
 
 type NewRequestInput = {
@@ -48,7 +48,11 @@ type RequestsContextValue = {
 
 const RequestsContext = createContext<RequestsContextValue | undefined>(undefined);
 
-function mapApiRequest(row: ApiRequestRow, profilesById: Record<string, ProfileRow>): DeliveryRequest {
+function mapApiRequest(
+  row: ApiRequestRow,
+  profilesById: Record<string, ProfileRow>,
+  ratingsByRequestId: Record<string, number> = {}
+): DeliveryRequest {
   const categoryKey = (row.category as RequestCategory) || 'other';
   const emoji = CATEGORY_EMOJIS.find((c) => c.category === categoryKey)?.emoji ?? '📦';
   const requesterProfile = profilesById[row.requester_id];
@@ -69,6 +73,7 @@ function mapApiRequest(row: ApiRequestRow, profilesById: Record<string, ProfileR
     // exists on the backend) — treat it as pending, let isExpired() handle it.
     isLateNightCraving: row.is_late_night_craving || false,
     status: row.status === 'expired' ? 'pending' : row.status,
+    rating: ratingsByRequestId[row.id],
     requester: {
       id: row.requester_id,
       name: requesterProfile?.full_name ?? 'Unknown student',
@@ -99,7 +104,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const { data: requests = [], isLoading: loading, error: queryError, refetch } = useQuery({
-    queryKey: ['requests'],
+    queryKey: ['requests', user?.id],
     queryFn: async () => {
       const [feed, mine, delivering] = await Promise.all([
         getOpenFeed(),
@@ -110,9 +115,12 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
       const uniqueRows = Array.from(new Map(allRows.map((r) => [r.id, r])).values());
 
       const profileIds = uniqueRows.flatMap((r) => [r.requester_id, r.deliverer_id].filter(Boolean) as string[]);
-      const profilesById = await getProfilesByIds(profileIds);
+      const [profilesById, ratingsByRequestId] = await Promise.all([
+        getProfilesByIds(profileIds),
+        getRatingsForRequests(uniqueRows.map((r) => r.id), user?.id),
+      ]);
 
-      return uniqueRows.map((row) => mapApiRequest(row, profilesById));
+      return uniqueRows.map((row) => mapApiRequest(row, profilesById, ratingsByRequestId));
     },
     enabled: isAuthenticated,
     staleTime: 60000, // 1 minute
@@ -129,7 +137,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated) return;
 
     const channel = supabase
-      .channel('public:requests')
+      .channel('public:requests_and_ratings')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'requests' },
@@ -138,23 +146,39 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
           const oldRow = payload.old as { id: string };
 
           if (payload.eventType === 'DELETE') {
-            queryClient.setQueryData<DeliveryRequest[]>(['requests'], (old) => old ? old.filter(r => r.id !== oldRow.id) : old);
+            queryClient.setQueryData<DeliveryRequest[]>(['requests', user?.id], (old) => old ? old.filter(r => r.id !== oldRow.id) : old);
             return;
           }
 
-          // Fetch profiles just for the affected row
+          // Fetch profiles and ratings just for the affected row
           const profileIds = [newRow.requester_id, newRow.deliverer_id].filter(Boolean) as string[];
-          const profilesById = await getProfilesByIds(profileIds);
-          const updatedRequest = mapApiRequest(newRow, profilesById);
+          const [profilesById, ratingsByRequestId] = await Promise.all([
+            getProfilesByIds(profileIds),
+            getRatingsForRequests([newRow.id], user?.id),
+          ]);
+          const updatedRequest = mapApiRequest(newRow, profilesById, ratingsByRequestId);
 
-          queryClient.setQueryData<DeliveryRequest[]>(['requests'], (old) => {
+          queryClient.setQueryData<DeliveryRequest[]>(['requests', user?.id], (old) => {
             if (!old) return [updatedRequest];
             const exists = old.some(r => r.id === updatedRequest.id);
             if (exists) {
-              return old.map(r => r.id === updatedRequest.id ? updatedRequest : r);
+              return old.map(r => r.id === updatedRequest.id ? { ...updatedRequest, rating: updatedRequest.rating ?? r.rating } : r);
             }
             return [updatedRequest, ...old];
           });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'ratings' },
+        (payload) => {
+          const newRating = payload.new as { request_id: string; rater_id: string; score: number };
+          if (newRating && newRating.rater_id === user?.id) {
+            queryClient.setQueryData<DeliveryRequest[]>(['requests', user?.id], (old) => {
+              if (!old) return old;
+              return old.map((r) => (r.id === newRating.request_id ? { ...r, rating: newRating.score } : r));
+            });
+          }
         }
       )
       .subscribe();
@@ -162,7 +186,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAuthenticated, queryClient]);
+  }, [isAuthenticated, user?.id, queryClient]);
 
   async function createRequest(input: NewRequestInput): Promise<ActionResult> {
     try {
@@ -221,14 +245,30 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
 
   async function rateRequest(requestId: string, rating: number): Promise<ActionResult> {
     try {
+      // Optimistically update rating in cache immediately
+      queryClient.setQueryData<DeliveryRequest[]>(['requests', user?.id], (old) => {
+        if (!old) return old;
+        return old.map((r) => (r.id === requestId ? { ...r, rating } : r));
+      });
       await submitRatingApi({ request_id: requestId, score: rating });
       await refresh();
       return { success: true };
     } catch (err: any) {
-      const message = err.message?.includes('409') ? 'You already rated this delivery.' : err.message ?? 'Could not submit rating.';
+      if (err.message?.includes('409')) {
+        // If already rated on backend, ensure the UI is set and refreshed
+        queryClient.setQueryData<DeliveryRequest[]>(['requests', user?.id], (old) => {
+          if (!old) return old;
+          return old.map((r) => (r.id === requestId ? { ...r, rating } : r));
+        });
+        await refresh();
+        return { success: true };
+      }
+      await refresh();
+      const message = err.message ?? 'Could not submit rating.';
       return { success: false, error: message };
     }
   }
+
 
   function announceTrip(input: NewTripInput) {
     if (!user) return;

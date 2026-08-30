@@ -32,6 +32,36 @@ export async function uploadProfilePicture(
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
 
   // Append a cache-buster so the app always fetches the latest image
-  // after an upload (CDN / image caches can be aggressive).
+  // after an update (CDN / image caches can be aggressive).
   return `${data.publicUrl}?t=${Date.now()}`;
 }
+
+/**
+ * Upload a chat attachment photo to Supabase Storage (ProfilePic bucket) and return the public URL.
+ */
+export async function uploadChatImage(
+  requestId: string,
+  localUri: string,
+): Promise<string> {
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+
+  const fileExt = localUri.split('.').pop()?.toLowerCase() || 'jpg';
+  const cleanExt = fileExt.includes('?') ? fileExt.split('?')[0] : fileExt;
+  const fileName = `chat/${requestId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${cleanExt}`;
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(fileName, blob, {
+      contentType: `image/${cleanExt === 'png' ? 'png' : 'jpeg'}`,
+      upsert: true,
+    });
+
+  if (error) {
+    throw new Error(`Chat image upload failed: ${error.message}`);
+  }
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+  return data.publicUrl;
+}
+

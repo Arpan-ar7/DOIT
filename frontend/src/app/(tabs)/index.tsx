@@ -14,19 +14,11 @@ import { CATEGORIES, RequestCategory, isExpired } from '../../constants/mockData
 import { routes } from '../../constants/routes';
 import RequestCard from '../../components/RequestCard';
 import Avatar from '../../components/Avatar';
-import ThemeToggle from '../../components/ThemeToggle';
 import { supabase } from '../../lib/supabase';
 
 const GOING_OUT_KEY = 'going_out_timestamp';
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) return 'Good morning';
-  if (h >= 12 && h < 17) return 'Good afternoon';
-  if (h >= 17 && h < 21) return 'Good evening';
-  return 'Good night';
-}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -121,15 +113,12 @@ export default function HomeScreen() {
           <>
             <View style={styles.top}>
               <View>
-                <Text style={styles.greeting}>{getGreeting()}, {firstName}</Text>
+                <Text style={styles.greeting}>Hey, {firstName} 👋</Text>
                 <Text style={styles.h1}>What can you carry?</Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                <ThemeToggle />
-                <Pressable onPress={() => router.push(routes.profile())}>
-                  <Avatar initials={initials} imageUri={user?.photoUri} size={42} />
-                </Pressable>
-              </View>
+              <Pressable onPress={() => router.push(routes.profile())}>
+                <Avatar initials={initials} imageUri={user?.photoUri} size={42} />
+              </Pressable>
             </View>
 
             {!!error && (

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Pressable, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
+  View, Text, TextInput, StyleSheet, Pressable, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -50,7 +51,7 @@ export default function SignupScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       {/* CHANGED — same fix as login.tsx: 'height' on Android instead of undefined. */}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
@@ -66,12 +67,19 @@ export default function SignupScreen() {
 
           <View style={styles.formCard}>
             <Text style={styles.label}>Full name</Text>
-            <TextInput style={styles.input} placeholder="e.g. Aarav Sharma" value={name} onChangeText={setName} />
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. Aarav Sharma"
+              placeholderTextColor={colors.muted}
+              value={name}
+              onChangeText={setName}
+            />
 
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
               placeholder="you@example.com"
+              placeholderTextColor={colors.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               value={email}
@@ -82,6 +90,7 @@ export default function SignupScreen() {
             <TextInput
               style={styles.input}
               placeholder="6-digit registration number"
+              placeholderTextColor={colors.muted}
               keyboardType="number-pad"
               maxLength={6}
               value={grNo}
@@ -95,6 +104,7 @@ export default function SignupScreen() {
             <TextInput
               style={styles.input}
               placeholder="10-digit mobile number"
+              placeholderTextColor={colors.muted}
               keyboardType="phone-pad"
               maxLength={10}
               value={phone}
@@ -106,6 +116,7 @@ export default function SignupScreen() {
               <TextInput
                 style={styles.passwordInput}
                 placeholder="At least 6 characters"
+                placeholderTextColor={colors.muted}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
@@ -119,6 +130,7 @@ export default function SignupScreen() {
             <TextInput
               style={styles.input}
               placeholder="Re-enter your password"
+              placeholderTextColor={colors.muted}
               secureTextEntry={!showPassword}
               value={confirmPassword}
               onChangeText={setConfirmPassword}

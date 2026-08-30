@@ -1,9 +1,5 @@
 import { supabase } from './supabase';
-
-// Talks directly to Supabase (not the Express backend) — the `messages`
-// table has its own RLS (participant + request-status scoped, see schema),
-// and Realtime gives us live push for free. No backend endpoint exists for
-// this and none is needed.
+import { apiClient } from './apiClient';
 
 export type MessageRow = {
   id: string;
@@ -25,13 +21,26 @@ export async function getMessages(requestId: string): Promise<MessageRow[]> {
 }
 
 export async function sendMessage(requestId: string, senderId: string, content: string): Promise<MessageRow> {
-  const { data, error } = await supabase
-    .from('messages')
-    .insert({ request_id: requestId, sender_id: senderId, content })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  try {
+    const res = await apiClient.messages.send(requestId, content);
+    return {
+      id: res.id,
+      request_id: res.request_id,
+      sender_id: res.sender_id,
+      content: res.content,
+      is_read: false,
+      created_at: res.created_at,
+    };
+  } catch (backendErr) {
+    console.warn('Backend message endpoint failed, falling back to direct DB insert:', backendErr);
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ request_id: requestId, sender_id: senderId, content })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
 }
 
 // Marks the OTHER participant's messages as read (never your own).

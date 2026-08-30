@@ -1,5 +1,6 @@
 import { useEffect, ReactNode } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RequestsProvider } from '../context/RequestsContext';
 import { CravingsProvider } from '../context/CravingsContext';
@@ -19,6 +20,21 @@ function AuthGate({ children }: { children: ReactNode }) {
       router.replace('/');
     }
   }, [isAuthenticated, segments]);
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response?.notification?.request?.content?.data as { request_id?: string; type?: string } | undefined;
+      if (data?.request_id) {
+        if (data.type === 'new_message') {
+          router.push(`/chat/${data.request_id}`);
+        } else {
+          router.push(`/order/${data.request_id}`);
+        }
+      }
+    });
+
+    return () => sub.remove();
+  }, [router]);
 
   return <>{children}</>;
 }

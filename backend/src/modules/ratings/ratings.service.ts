@@ -82,3 +82,32 @@ export async function getRatingsForUser(userId: string): Promise<RatingRecord[]>
 
   return data as RatingRecord[];
 }
+
+export async function getRatingsByRater(raterId: string): Promise<RatingRecord[]> {
+  const { data, error } = await supabaseClient
+    .from('ratings')
+    .select('*')
+    .eq('rater_id', raterId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch ratings by rater');
+    throw new AppError(500, 'Failed to fetch ratings');
+  }
+
+  return data as RatingRecord[];
+}
+
+export async function getRatingsForRequest(requestId: string, userId: string): Promise<RatingRecord[]> {
+  const { data, error } = await supabaseClient
+    .from('ratings')
+    .select('*')
+    .eq('request_id', requestId);
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch ratings for request');
+    throw new AppError(500, 'Failed to fetch ratings');
+  }
+
+  return (data ?? []) as RatingRecord[];
+}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -32,7 +33,7 @@ export default function OrderStatusScreen() {
 
   if (!request) {
     return (
-      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
+      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
         <View style={styles.center}><Text style={styles.emptyText}>This order no longer exists.</Text></View>
       </SafeAreaView>
     );
@@ -44,7 +45,7 @@ export default function OrderStatusScreen() {
 
   if (request.status === 'cancelled') {
     return (
-      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
+      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
         <ScreenHeader title="Order status" />
         <View style={styles.center}>
           <Ionicons name="close-circle-outline" size={32} color="#c14b30" />
@@ -81,7 +82,7 @@ export default function OrderStatusScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
       <ScreenHeader title="Order status" rightIcon="chatbubble-outline" onRightPress={() => router.push(routes.chat(request.id))} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.summaryCard, isDarkMode && styles.cardDark]}>
@@ -146,10 +147,12 @@ export default function OrderStatusScreen() {
 
         {isRequester && request.status === 'completed' && !request.rating && (
           <View style={[styles.rateCard, isDarkMode && styles.cardDark]}>
-            <Text style={[styles.rateTitle, isDarkMode && styles.textWhite]}>Rate this delivery</Text>
+            <Text style={[styles.rateTitle, isDarkMode && styles.textWhite]}>
+              {rating ? 'Submitting rating...' : 'Rate this delivery'}
+            </Text>
             <View style={styles.starRow}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <Pressable key={n} onPress={() => handleRate(n)} disabled={rating}>
+                <Pressable key={n} onPress={() => handleRate(n)} disabled={rating} hitSlop={6}>
                   <Ionicons name="star-outline" size={26} color={colors.orange} />
                 </Pressable>
               ))}

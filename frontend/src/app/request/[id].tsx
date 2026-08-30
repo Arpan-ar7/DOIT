@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -28,7 +29,7 @@ export default function RequestDetailsScreen() {
 
   if (!request) {
     return (
-      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
+      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
         <View style={styles.center}>
           <Text style={styles.notFound}>This request no longer exists.</Text>
           <Pressable style={[styles.btnOutline, isDarkMode && styles.btnOutlineDark]} onPress={() => router.back()}>
@@ -72,7 +73,7 @@ export default function RequestDetailsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
       <ScreenHeader title="Request details" />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.hero, isDarkMode && styles.cardDark]}>

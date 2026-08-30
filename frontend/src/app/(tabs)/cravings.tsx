@@ -148,18 +148,22 @@ export default function CravingsScreen() {
   }, [cravings]);
 
   return (
-    <ImageBackground source={bannerImg} style={styles.safe} resizeMode="cover">
-      <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
-        <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.sm }}>
+    <ImageBackground
+      source={bannerImg}
+      style={styles.safe}
+      resizeMode="cover"
+      blurRadius={Platform.OS === 'android' ? 8 : 12}
+    >
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(6, 6, 9, 0.72)' }]} />
+      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
+        <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.sm }}>
           <View style={styles.headerRow}>
             <FlickerTitle />
             <MaterialCommunityIcons name="bat" size={32} color={horror.redBright} style={styles.batIcon} />
           </View>
           <Text style={styles.headerSub}>{CRAVING_LABELS.headerSub}</Text>
         </View>
-      </SafeAreaView>
 
-      <BlurView intensity={40} tint="dark" style={{ flex: 1 }}>
         <FlatList
           data={feed}
           keyExtractor={(item) => item.id}
@@ -187,10 +191,10 @@ export default function CravingsScreen() {
               </View>
             ) : null
           }
-          contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: Math.max(insets.bottom, 24) + 100 }}
-          style={{ backgroundColor: 'transparent' }}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: Math.max(insets.bottom, 24) + 100 }}
+          style={{ flex: 1, backgroundColor: 'transparent' }}
         />
-      </BlurView>
+      </SafeAreaView>
 
       <ScalePressable
         style={[styles.fab, { bottom: Math.max(insets.bottom + 22, 22) + 80 }]}

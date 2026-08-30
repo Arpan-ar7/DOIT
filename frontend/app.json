@@ -4,19 +4,17 @@
     "slug": "unicart",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/Unicart_logo.jpg",
+    "icon": "./assets/images/Unicart_logo1.jpg",
     "scheme": "unicart",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/Unicart_logo.jpg"
+      "icon": "./assets/images/Unicart_logo1.jpg"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/Unicart_logo.jpg",
-        "backgroundImage": "./assets/images/Unicart_logo.jpg",
-        "monochromeImage": "./assets/images/Unicart_logo.jpg"
+        "foregroundImage": "./assets/images/Unicart_logo1.jpg"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.hex2.unicart",
@@ -34,7 +32,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/Unicart_logo.jpg",
           "imageWidth": 76
         }
       ],

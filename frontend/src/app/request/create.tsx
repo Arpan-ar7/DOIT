@@ -57,11 +57,12 @@ export default function CreateRequestScreen() {
     router.back();
   }
 
+  const placeholderColor = isDarkMode ? '#8a9e9f' : colors.muted;
   const inputStyle = [styles.input, isDarkMode && styles.inputDark];
   const labelStyle = [styles.label, isDarkMode && styles.labelDark];
 
   return (
-    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScreenHeader title="Create request" />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -79,18 +80,18 @@ export default function CreateRequestScreen() {
             </View>
 
             <Text style={labelStyle}>What do you need?</Text>
-            <TextInput style={inputStyle} placeholder="e.g. Chicken Biryani, Notebook, Paracetamol" placeholderTextColor={colors.muted} value={itemName} onChangeText={setItemName} />
+            <TextInput style={inputStyle} placeholder="e.g. Chicken Biryani, Notebook, Paracetamol" placeholderTextColor={placeholderColor} value={itemName} onChangeText={setItemName} />
 
             <Text style={labelStyle}>Shop or place (optional)</Text>
-            <TextInput style={inputStyle} placeholder="e.g. Madras Café, Reliance Fresh" placeholderTextColor={colors.muted} value={shop} onChangeText={setShop} />
+            <TextInput style={inputStyle} placeholder="e.g. Madras Café, Reliance Fresh" placeholderTextColor={placeholderColor} value={shop} onChangeText={setShop} />
 
             <Text style={labelStyle}>Delivery location</Text>
-            <TextInput style={inputStyle} placeholder="e.g. Girls Hostel, Main Gate" placeholderTextColor={colors.muted} value={deliveryLocation} onChangeText={setDeliveryLocation} />
+            <TextInput style={inputStyle} placeholder="e.g. Girls Hostel, Main Gate" placeholderTextColor={placeholderColor} value={deliveryLocation} onChangeText={setDeliveryLocation} />
 
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={labelStyle}>Approx item budget (₹)</Text>
-                <TextInput style={inputStyle} placeholder="e.g. 200" placeholderTextColor={colors.muted} keyboardType="number-pad" value={itemBudget} onChangeText={setItemBudget} />
+                <TextInput style={inputStyle} placeholder="e.g. 200" placeholderTextColor={placeholderColor} keyboardType="number-pad" value={itemBudget} onChangeText={setItemBudget} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={styles.labelRow}>
@@ -98,6 +99,8 @@ export default function CreateRequestScreen() {
                 </View>
                 <TextInput
                   style={inputStyle}
+                  placeholder="30"
+                  placeholderTextColor={placeholderColor}
                   keyboardType="number-pad"
                   value={deliveryFee}
                   onChangeText={setDeliveryFee}
@@ -115,7 +118,7 @@ export default function CreateRequestScreen() {
             )}
 
             <Text style={labelStyle}>Notes for your delivery partner (optional)</Text>
-            <TextInput style={[inputStyle, styles.textarea]} placeholder="e.g. Extra spicy, Brand: Classmate, Qty: 2" placeholderTextColor={colors.muted} value={notes} onChangeText={setNotes} multiline />
+            <TextInput style={[inputStyle, styles.textarea]} placeholder="e.g. Extra spicy, Brand: Classmate, Qty: 2" placeholderTextColor={placeholderColor} value={notes} onChangeText={setNotes} multiline />
           </View>
 
           {!!postError && <Text style={styles.errorText}>{postError}</Text>}

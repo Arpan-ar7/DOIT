@@ -12,6 +12,32 @@ export async function submit(req: Request, res: Response, next: NextFunction): P
   }
 }
 
+export async function getMine(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new AppError(401, 'Not authenticated');
+    const result = await ratingsService.getRatingsByRater(req.user.id);
+    res.status(200).json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getForRequest(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.user) throw new AppError(401, 'Not authenticated');
+    const { requestId } = req.params;
+    if (!requestId || Array.isArray(requestId)) throw new AppError(400, 'Missing requestId');
+    const result = await ratingsService.getRatingsForRequest(requestId, req.user.id);
+    res.status(200).json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getForUser(
   req: Request,
   res: Response,
@@ -25,4 +51,4 @@ export async function getForUser(
   } catch (err) {
     next(err);
   }
-}
+}

@@ -10,4 +10,6 @@ ratingsRouter.use(authenticate);
 
 
 ratingsRouter.post('/', validateBody(submitRatingSchema), ratingsController.submit);
-ratingsRouter.get('/user/:userId', ratingsController.getForUser);
+ratingsRouter.get('/mine', ratingsController.getMine);
+ratingsRouter.get('/request/:requestId', ratingsController.getForRequest);
+ratingsRouter.get('/user/:userId', ratingsController.getForUser);

@@ -66,7 +66,12 @@ export default function MessagesScreen() {
                 </View>
                 <Text style={[styles.preview, item.unread && styles.previewUnread]} numberOfLines={1}>
                   {item.lastMessage
-                    ? `${item.lastMessage.sender_id === user?.id ? 'You: ' : ''}${item.lastMessage.content}`
+                    ? `${item.lastMessage.sender_id === user?.id ? 'You: ' : ''}${
+                        (item.lastMessage.content.startsWith('http://') || item.lastMessage.content.startsWith('https://')) &&
+                        (item.lastMessage.content.includes('/storage/') || item.lastMessage.content.includes('ProfilePic') || /\.(jpg|jpeg|png|webp|gif)/i.test(item.lastMessage.content))
+                          ? '📷 Photo'
+                          : item.lastMessage.content
+                      }`
                     : `About "${item.request.itemName}" · Tap to say hi`}
                 </Text>
               </View>

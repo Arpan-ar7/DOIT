@@ -36,6 +36,14 @@ function assertIsParticipant(
   }
 }
 
+function isImageUrl(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return (
+    (t.startsWith('http://') || t.startsWith('https://')) &&
+    (t.includes('/storage/') || t.includes('profilepic') || /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(t))
+  );
+}
+
 export async function sendMessage(
   requestId: string,
   senderId: string,
@@ -73,12 +81,35 @@ export async function sendMessage(
     request.requester_id === senderId ? request.deliverer_id : request.requester_id;
 
   if (recipientId) {
+    const { data: senderProfile } = await supabaseClient
+      .from('profiles')
+      .select('full_name')
+      .eq('id', senderId)
+      .single();
+
+    const isImage = isImageUrl(content);
+    const senderName = senderProfile?.full_name?.trim() || 'Someone';
+
+    const notificationTitle = isImage
+      ? `${senderName} sent you a photo`
+      : request.item_name
+      ? `${senderName} (${request.item_name})`
+      : `New message from ${senderName}`;
+
+    const notificationBody = isImage
+      ? request.item_name
+        ? `Regarding "${request.item_name}"`
+        : '📷 Tap to view photo'
+      : content.length > 100
+      ? content.slice(0, 100) + '...'
+      : content;
+
     await notifySafely(() =>
       sendPush(
         recipientId,
         'new_message',
-        `New message about "${request.item_name}"`,
-        content.length > 100 ? content.slice(0, 100) + '...' : content,
+        notificationTitle,
+        notificationBody,
         requestId
       )
     );

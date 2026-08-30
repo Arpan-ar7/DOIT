@@ -109,6 +109,13 @@ export default function OrdersScreen() {
             {activeAccepted.map(renderOrderRow)}
           </>
         )}
+        
+        {activeGenerated.length > 0 && (
+          <>
+            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active - Posted by you</Text></View>
+            {activeGenerated.map(renderOrderRow)}
+          </>
+        )}
 
         {pastAccepted.length > 0 && (
           <>
@@ -117,12 +124,7 @@ export default function OrdersScreen() {
           </>
         )}
 
-        {activeGenerated.length > 0 && (
-          <>
-            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active - Posted by you</Text></View>
-            {activeGenerated.map(renderOrderRow)}
-          </>
-        )}
+        
 
         {pastGenerated.length > 0 && (
           <>

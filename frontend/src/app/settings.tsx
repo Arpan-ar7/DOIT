@@ -5,12 +5,12 @@ import {
   TextInput,
   StyleSheet,
   Pressable,
-  SafeAreaView,
   ScrollView,
   Switch,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../constants/theme';
@@ -22,30 +22,26 @@ import Avatar from '../components/Avatar';
 
 export default function SettingsScreen() {
   const { user, updateProfile, logout } = useAuth();
-  const { isDarkMode } = useTheme();
+  const { isDarkMode, toggleDarkMode } = useTheme();
 
   const [name, setName] = useState(user?.name ?? '');
   const [username, setUsername] = useState(user?.username ?? '');
   const [photoUri, setPhotoUri] = useState<string | null>(user?.photoUri ?? null);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-
-  const [saveError, setSaveError] = useState('');
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [passwordNotice, setPasswordNotice] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [passwordNotice, setPasswordNotice] = useState(false);
 
-  const trimmedUsername = username.trim().toLowerCase();
-  const usernameFormatOk = trimmedUsername.length === 0 || isUsernameFormatValid(trimmedUsername);
-  const usernameTaken =
-    trimmedUsername.length > 0 &&
-    isUsernameFormatValid(trimmedUsername) &&
-    isUsernameTaken(trimmedUsername, user?.username);
+  const trimmedUsername = username.trim();
+  const usernameFormatOk = isUsernameFormatValid(trimmedUsername);
+  const usernameTaken = isUsernameTaken(trimmedUsername, user?.id ?? '');
 
   async function handlePickPhoto() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setSaveError('Allow photo access in your device settings to set a profile picture.');
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      alert('Permission to access photos is required.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -54,59 +50,42 @@ export default function SettingsScreen() {
       aspect: [1, 1],
       quality: 0.7,
     });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      const uri = result.assets[0].uri;
-      setPhotoUri(uri);
-      // Auto-save immediately when photo is cropped — so "Crop" = set as profile pic
-      setSaving(true);
-      setSaveError('');
-      const res = await updateProfile({ name: name.trim() || user?.name || '', photoUri: uri });
-      setSaving(false);
-      if (!res.success) {
-        setSaveError(res.error ?? 'Could not save profile picture.');
-      } else {
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 2500);
-      }
+    if (!result.canceled && result.assets[0]?.uri) {
+      setPhotoUri(result.assets[0].uri);
     }
   }
 
   async function handleSave() {
-    setSaveError('');
-    setSaveSuccess(false);
-
     if (!name.trim()) {
       setSaveError('Name cannot be empty.');
       return;
     }
     if (!usernameFormatOk) {
-      setSaveError('Username must be 3–20 characters: letters, numbers, and underscores only.');
+      setSaveError('Username must be 3–20 alphanumeric characters or underscores.');
       return;
     }
     if (usernameTaken) {
-      setSaveError('That username is already taken — try another.');
+      setSaveError('This username is already taken. Try another.');
       return;
     }
-
+    setSaveError('');
     setSaving(true);
     const result = await updateProfile({
       name: name.trim(),
-      username: trimmedUsername || user?.username,
+      username: trimmedUsername,
       photoUri,
     });
     setSaving(false);
-
     if (!result.success) {
-      setSaveError(result.error ?? 'Could not save changes.');
+      setSaveError(result.error ?? 'Could not save profile.');
       return;
     }
-
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2500);
   }
 
   return (
-    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScreenHeader title="Settings" />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -115,15 +94,21 @@ export default function SettingsScreen() {
           </View>
           <View style={[styles.card, isDarkMode && styles.cardDark]}>
             <View style={styles.photoRow}>
-              <Avatar initials={(user?.username ?? 'S').slice(0, 2).toUpperCase()} imageUri={photoUri} size={64} />
+              <Avatar initials={name ? name[0].toUpperCase() : 'U'} imageUri={photoUri} size={54} />
               <Pressable style={[styles.changePhotoBtn, isDarkMode && styles.changePhotoBtnDark]} onPress={handlePickPhoto}>
-                <Ionicons name="camera-outline" size={15} color={isDarkMode ? '#54f0c4' : colors.green} />
+                <Ionicons name="camera-outline" size={16} color={isDarkMode ? '#54f0c4' : colors.green} />
                 <Text style={[styles.changePhotoText, isDarkMode && styles.changePhotoTextDark]}>Change photo</Text>
               </Pressable>
             </View>
 
             <Text style={[styles.label, isDarkMode && styles.labelDark]}>Full name</Text>
-            <TextInput style={[styles.input, isDarkMode && styles.inputDark]} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor="#8a9e9f" />
+            <TextInput
+              style={[styles.input, isDarkMode && styles.inputDark]}
+              value={name}
+              onChangeText={setName}
+              placeholder="Your name"
+              placeholderTextColor={isDarkMode ? '#8a9e9f' : colors.muted}
+            />
 
             <Text style={[styles.label, isDarkMode && styles.labelDark]}>Username</Text>
             <View style={[styles.usernameRow, isDarkMode && styles.inputDark]}>
@@ -134,31 +119,30 @@ export default function SettingsScreen() {
                 onChangeText={setUsername}
                 autoCapitalize="none"
                 placeholder="username"
-                placeholderTextColor="#8a9e9f"
+                placeholderTextColor={isDarkMode ? '#8a9e9f' : colors.muted}
               />
             </View>
             {trimmedUsername.length > 0 && (
               <View style={styles.usernameStatusRow}>
                 <Ionicons
-                  name={usernameFormatOk && !usernameTaken ? 'checkmark-circle' : 'close-circle'}
+                  name={!usernameFormatOk || usernameTaken ? 'close-circle' : 'checkmark-circle'}
                   size={14}
-                  color={usernameFormatOk && !usernameTaken ? colors.green : '#c14b30'}
+                  color={!usernameFormatOk || usernameTaken ? '#c14b30' : colors.green}
                 />
                 <Text
                   style={[
                     styles.usernameStatusText,
-                    { color: usernameFormatOk && !usernameTaken ? colors.green : '#c14b30' },
+                    { color: !usernameFormatOk || usernameTaken ? '#c14b30' : colors.green },
                   ]}
                 >
                   {!usernameFormatOk
-                    ? '3–20 characters: letters, numbers, underscores only'
+                    ? '3–20 letters, numbers, or _'
                     : usernameTaken
                     ? 'Already taken'
                     : 'Available'}
                 </Text>
               </View>
             )}
-
 
             {!!saveError && <Text style={styles.errorText}>{saveError}</Text>}
             {saveSuccess && <Text style={styles.successText}>Profile updated.</Text>}
@@ -174,12 +158,19 @@ export default function SettingsScreen() {
           <View style={[styles.card, isDarkMode && styles.cardDark]}>
             <View style={styles.switchRow}>
               <View style={{ flex: 1 }}>
+                <Text style={[styles.switchLabel, isDarkMode && styles.textWhite]}>Dark mode</Text>
+                <Text style={[styles.switchSub, isDarkMode && styles.textMuted]}>Switch between light and dark theme.</Text>
+              </View>
+              <Switch value={isDarkMode} onValueChange={toggleDarkMode} trackColor={{ true: colors.green }} />
+            </View>
+            <View style={[styles.divider, isDarkMode && styles.dividerDark]} />
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
                 <Text style={[styles.switchLabel, isDarkMode && styles.textWhite]}>Push notifications</Text>
                 <Text style={[styles.switchSub, isDarkMode && styles.textMuted]}>Get notified when your request is accepted or updated.</Text>
               </View>
               <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled} trackColor={{ true: colors.green }} />
             </View>
-            {/* "Share phone number" removed — will come back later, per request. */}
           </View>
 
           <View style={styles.sectionHead}>
@@ -253,6 +244,7 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
   switchLabel: { fontSize: 13, fontWeight: '700', color: colors.ink },
   switchSub: { fontSize: 11, color: colors.muted, marginTop: 3 },
+  divider: { height: 1, backgroundColor: colors.line, marginVertical: 10 },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
   menuLabel: { flex: 1, fontSize: 14, color: colors.ink },
   noticeText: { fontSize: 11, color: colors.muted, marginTop: 10, lineHeight: 16 },
@@ -275,6 +267,7 @@ const styles = StyleSheet.create({
   textWhite: { color: '#f8f8f8' },
   textMuted: { color: '#8a9e9f' },
   cardDark: { backgroundColor: '#1a2221', borderColor: '#2d3b38' },
+  dividerDark: { backgroundColor: '#2d3b38' },
   changePhotoBtnDark: { backgroundColor: '#1e382b' },
   changePhotoTextDark: { color: '#54f0c4' },
   labelDark: { color: '#aab6b8' },

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Pressable, SafeAreaView, ScrollView, KeyboardAvoidingView, Platform,
+  View, Text, TextInput, StyleSheet, Pressable, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
@@ -24,12 +25,12 @@ export default function LoginScreen() {
     const result = await login(email, grNo, password);
     setLoading(false);
     if (!result.success) {
-      setError(result.error ?? 'Something went wrong. Try again.');
+      setError(result.error ?? 'Could not log in.');
     }
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       {/* CHANGED — 'height' instead of undefined on Android. Combined with
           app.json's softwareKeyboardLayoutMode: 'resize', this actually
           shrinks the available space when the keyboard opens, so nothing
@@ -51,6 +52,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="you@example.com"
+              placeholderTextColor={colors.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               value={email}
@@ -61,6 +63,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="6-digit registration number"
+              placeholderTextColor={colors.muted}
               keyboardType="number-pad"
               maxLength={6}
               value={grNo}
@@ -72,6 +75,7 @@ export default function LoginScreen() {
               <TextInput
                 style={styles.passwordInput}
                 placeholder="Enter your password"
+                placeholderTextColor={colors.muted}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}

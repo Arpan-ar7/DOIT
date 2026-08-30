@@ -1,21 +1,29 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Pressable, FlatList,
-  KeyboardAvoidingView, Platform, Animated, Image,
+  KeyboardAvoidingView, Platform, Animated, Image, Modal, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { horror, radius, spacing } from '../../constants/theme';
 import { CRAVING_LABELS } from '../../constants/mockData';
 import { useCravings } from '../../context/CravingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { getMessages, sendMessage as sendRealMessage, subscribeToMessages, markMessagesRead, MessageRow } from '../../lib/messagesApi';
+import { uploadChatImage } from '../../lib/storage';
 
 // @ts-ignore
 import batImg from '../../assets/horror/bat.jpg';
 
-
+function isImageUrl(content: string): boolean {
+  const t = content.trim().toLowerCase();
+  return (
+    (t.startsWith('http://') || t.startsWith('https://') || t.startsWith('file://')) &&
+    (t.includes('/storage/') || t.includes('profilepic') || /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(t))
+  );
+}
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -43,6 +51,8 @@ export default function CravingDetailScreen() {
   const [msgText, setMsgText] = useState('');
   const [accepting, setAccepting] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const acceptLabel = useRef(getRandomAcceptLabel()).current;
 
   const fadeIn = useRef(new Animated.Value(0)).current;
@@ -102,9 +112,54 @@ export default function CravingDetailScreen() {
     }
   }, [msgText, craving?.id, user]);
 
+  const handlePickImage = useCallback(async () => {
+    if (!craving?.id || !user || uploadingImage) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please allow photo gallery access to send images.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) return;
+
+    const localUri = result.assets[0].uri;
+    setUploadingImage(true);
+
+    const tempId = `pending-img-${Date.now()}`;
+    const optimistic: MessageRow = {
+      id: tempId,
+      request_id: craving.id,
+      sender_id: user.id,
+      content: localUri,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
+
+    try {
+      const publicUrl = await uploadChatImage(craving.id, localUri);
+      const saved = await sendRealMessage(craving.id, user.id, publicUrl);
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
+    } catch (err: any) {
+      console.error('Failed to send image:', err);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      Alert.alert('Upload failed', err.message || 'Could not send image.');
+    } finally {
+      setUploadingImage(false);
+    }
+  }, [craving?.id, user, uploadingImage]);
+
   if (!craving) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} hitSlop={10}>
             <Ionicons name="arrow-back" size={24} color={horror.white} />
@@ -248,12 +303,23 @@ export default function CravingDetailScreen() {
           renderItem={({ item }) => {
             const isMine = item.sender_id === user?.id;
             const senderName = isMine ? user?.name : (isOwn ? craving.acceptedBy?.name : craving.postedBy.name) || 'Ghost';
+            const isImage = isImageUrl(item.content);
             return (
               <View style={[styles.msgRow, isMine && styles.msgRowMine]}>
-                <View style={[styles.msgBubble, isMine ? styles.msgBubbleMine : styles.msgBubbleOther]}>
+                <View style={[styles.msgBubble, isMine ? styles.msgBubbleMine : styles.msgBubbleOther, isImage && styles.msgBubbleImage]}>
                   {!isMine && <Text style={styles.msgSender}>{senderName}</Text>}
-                  <Text style={styles.msgContent}>{item.content}</Text>
-                  <Text style={styles.msgTime}>{timeAgo(item.created_at)}</Text>
+                  {isImage ? (
+                    <Pressable onPress={() => setSelectedImage(item.content)}>
+                      <Image
+                        source={{ uri: item.content }}
+                        style={styles.chatImage}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.msgContent}>{item.content}</Text>
+                  )}
+                  <Text style={[styles.msgTime, isImage && { marginTop: 2, marginRight: 2 }]}>{timeAgo(item.created_at)}</Text>
                 </View>
               </View>
             );
@@ -272,6 +338,17 @@ export default function CravingDetailScreen() {
         {/* Chat input */}
         {canChat && (
           <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+            <Pressable
+              style={styles.attachBtn}
+              onPress={handlePickImage}
+              disabled={uploadingImage}
+            >
+              {uploadingImage ? (
+                <ActivityIndicator size="small" color={horror.redGlow} />
+              ) : (
+                <Ionicons name="camera-outline" size={22} color={horror.muted} />
+              )}
+            </Pressable>
             <TextInput
               style={styles.msgInput}
               placeholder="Type a message..."
@@ -280,13 +357,34 @@ export default function CravingDetailScreen() {
               onChangeText={setMsgText}
               onSubmitEditing={sendMessage}
               returnKeyType="send"
+              editable={!uploadingImage}
             />
-            <Pressable style={styles.sendBtn} onPress={sendMessage} disabled={!msgText.trim()}>
+            <Pressable style={styles.sendBtn} onPress={sendMessage} disabled={!msgText.trim() || uploadingImage}>
               <Ionicons name="send" size={18} color={msgText.trim() ? '#fff' : horror.muted} />
             </Pressable>
           </View>
         )}
       </KeyboardAvoidingView>
+
+      {/* Full-Screen Image Modal */}
+      <Modal visible={!!selectedImage} transparent={true} animationType="fade" onRequestClose={() => setSelectedImage(null)}>
+        <SafeAreaView style={styles.modalBg}>
+          <View style={styles.modalHeader}>
+            <Pressable style={styles.closeBtn} onPress={() => setSelectedImage(null)}>
+              <Ionicons name="close" size={26} color="#fff" />
+            </Pressable>
+          </View>
+          <View style={styles.modalContent}>
+            {selectedImage && (
+              <Image
+                source={{ uri: selectedImage }}
+                style={styles.fullImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -446,6 +544,16 @@ const styles = StyleSheet.create({
   },
   msgBubbleMine: { backgroundColor: horror.red, borderBottomRightRadius: 4 },
   msgBubbleOther: { backgroundColor: horror.surfaceLight, borderBottomLeftRadius: 4 },
+  msgBubbleImage: {
+    padding: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  chatImage: {
+    width: 220,
+    height: 160,
+    borderRadius: 12,
+  },
   msgSender: { color: horror.redGlow, fontSize: 10, fontWeight: '800', marginBottom: 2 },
   msgContent: { color: horror.textPrimary, fontSize: 14, lineHeight: 20 },
   msgTime: { color: horror.muted, fontSize: 9, marginTop: 4, textAlign: 'right' },
@@ -460,6 +568,16 @@ const styles = StyleSheet.create({
     backgroundColor: horror.cardBg,
     borderTopWidth: 1,
     borderTopColor: horror.border,
+  },
+  attachBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: horror.surface,
+    borderWidth: 1,
+    borderColor: horror.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   msgInput: {
     flex: 1,
@@ -479,5 +597,32 @@ const styles = StyleSheet.create({
     backgroundColor: horror.red,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 10,
+  },
+  fullImage: {
+    width: '100%',
+    height: '100%',
   },
 });
