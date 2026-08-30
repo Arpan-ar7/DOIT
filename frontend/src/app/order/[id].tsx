@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { RequestStatus } from '../../constants/mockData';
 import { routes } from '../../constants/routes';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -21,6 +22,7 @@ export default function OrderStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { isDarkMode } = useTheme();
   const { getRequestById, advanceStatus, rateRequest } = useRequests();
   const request = getRequestById(id);
 
@@ -30,7 +32,7 @@ export default function OrderStatusScreen() {
 
   if (!request) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
         <View style={styles.center}><Text style={styles.emptyText}>This order no longer exists.</Text></View>
       </SafeAreaView>
     );
@@ -42,7 +44,7 @@ export default function OrderStatusScreen() {
 
   if (request.status === 'cancelled') {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
         <ScreenHeader title="Order status" />
         <View style={styles.center}>
           <Ionicons name="close-circle-outline" size={32} color="#c14b30" />
@@ -79,44 +81,44 @@ export default function OrderStatusScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
       <ScreenHeader title="Order status" rightIcon="chatbubble-outline" onRightPress={() => router.push(routes.chat(request.id))} />
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.summaryCard}>
+        <View style={[styles.summaryCard, isDarkMode && styles.cardDark]}>
           <View style={styles.emojiBox}><Text style={styles.emoji}>{request.emoji}</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.itemName}>{request.itemName}</Text>
-            <Text style={styles.subtext}>For {request.requester.name} · Total ₹{total}</Text>
+            <Text style={[styles.itemName, isDarkMode && styles.textWhite]}>{request.itemName}</Text>
+            <Text style={[styles.subtext, isDarkMode && styles.textMuted]}>For {request.requester.name} · Total ₹{total}</Text>
           </View>
-          <View style={styles.activeTag}><Text style={styles.activeTagText}>{request.status === 'completed' ? 'Done' : 'Active'}</Text></View>
+          <View style={[styles.activeTag, isDarkMode && styles.activeTagDark]}><Text style={[styles.activeTagText, isDarkMode && styles.activeTagTextDark]}>{request.status === 'completed' ? 'Done' : 'Active'}</Text></View>
         </View>
 
         {/* Delivery partner reveal — phone-sharing block removed entirely
             per your last message; just name/rating now. */}
         {showAccepterCard && request.accepter && (
-          <View style={styles.accepterCard}>
-            <Avatar initials={request.accepter.initials} backgroundColor="#d4e8f8" textColor="#236b95" size={44} />
+          <View style={[styles.accepterCard, isDarkMode && styles.cardDark]}>
+            <Avatar initials={request.accepter.initials} imageUri={request.accepter.photoUri} backgroundColor={isDarkMode ? '#1a2e45' : '#d4e8f8'} textColor={isDarkMode ? '#54a0d2' : '#236b95'} size={44} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.accepterName}>{request.accepter.name}</Text>
-              <Text style={styles.accepterSub}>★ {request.accepter.rating.toFixed(1)} · {request.accepter.completedRequests} deliveries</Text>
+              <Text style={[styles.accepterName, isDarkMode && styles.textWhite]}>{request.accepter.name}</Text>
+              <Text style={[styles.accepterSub, isDarkMode && styles.textMuted]}>★ {request.accepter.rating.toFixed(1)} · {request.accepter.completedRequests} deliveries</Text>
             </View>
-            <Ionicons name="shield-checkmark" size={18} color={colors.green} />
+            <Ionicons name="shield-checkmark" size={18} color={isDarkMode ? '#54f0c4' : colors.green} />
           </View>
         )}
 
-        <View style={styles.timelineCard}>
+        <View style={[styles.timelineCard, isDarkMode && styles.cardDark]}>
           {STEPS.map((step, index) => {
             const isDone = index < currentIndex;
             const isCurrent = index === currentIndex;
             return (
               <View key={step.key} style={[styles.stepRow, index === STEPS.length - 1 && { paddingBottom: 0 }]}>
-                {index !== STEPS.length - 1 && <View style={[styles.connector, isDone && styles.connectorDone]} />}
-                <View style={[styles.dot, isDone && styles.dotDone, isCurrent && styles.dotCurrent]}>
-                  <Ionicons name={isDone ? 'checkmark' : step.icon} size={15} color={isDone || isCurrent ? '#fff' : '#95a29a'} />
+                {index !== STEPS.length - 1 && <View style={[styles.connector, isDarkMode && styles.connectorDark, isDone && styles.connectorDone]} />}
+                <View style={[styles.dot, isDarkMode && styles.dotDark, isDone && styles.dotDone, isCurrent && [styles.dotCurrent, isDarkMode && styles.dotCurrentDark]]}>
+                  <Ionicons name={isDone ? 'checkmark' : step.icon} size={15} color={isDone || isCurrent ? '#fff' : (isDarkMode ? '#8a9e9f' : '#95a29a')} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.stepLabel}>{step.label}</Text>
-                  <Text style={[styles.stepCopy, isCurrent && styles.stepCopyCurrent]}>{isDone || isCurrent ? step.doneCopy : step.pendingCopy}</Text>
+                  <Text style={[styles.stepLabel, isDarkMode && styles.textWhite]}>{step.label}</Text>
+                  <Text style={[styles.stepCopy, isDarkMode && styles.textMuted, isCurrent && [styles.stepCopyCurrent, isDarkMode && styles.stepCopyCurrentDark]]}>{isDone || isCurrent ? step.doneCopy : step.pendingCopy}</Text>
                 </View>
               </View>
             );
@@ -132,19 +134,19 @@ export default function OrderStatusScreen() {
         )}
 
         {isRequester && !isDeliveryPartner && request.status !== 'completed' && (
-          <Text style={styles.trackingNote}>You'll see this update automatically as your delivery partner makes progress.</Text>
+          <Text style={[styles.trackingNote, isDarkMode && styles.textMuted]}>You'll see this update automatically as your delivery partner makes progress.</Text>
         )}
 
         {request.status === 'completed' && (
-          <View style={styles.doneBanner}>
-            <Ionicons name="sparkles" size={18} color={colors.green} />
-            <Text style={styles.doneBannerText}>Delivery complete — ₹{request.deliveryFee} added to your earnings.</Text>
+          <View style={[styles.doneBanner, isDarkMode && styles.doneBannerDark]}>
+            <Ionicons name="sparkles" size={18} color={isDarkMode ? '#54f0c4' : colors.green} />
+            <Text style={[styles.doneBannerText, isDarkMode && styles.doneBannerTextDark]}>Delivery complete — ₹{request.deliveryFee} added to your earnings.</Text>
           </View>
         )}
 
         {isRequester && request.status === 'completed' && !request.rating && (
-          <View style={styles.rateCard}>
-            <Text style={styles.rateTitle}>Rate this delivery</Text>
+          <View style={[styles.rateCard, isDarkMode && styles.cardDark]}>
+            <Text style={[styles.rateTitle, isDarkMode && styles.textWhite]}>Rate this delivery</Text>
             <View style={styles.starRow}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <Pressable key={n} onPress={() => handleRate(n)} disabled={rating}>
@@ -155,7 +157,7 @@ export default function OrderStatusScreen() {
           </View>
         )}
         {isRequester && request.status === 'completed' && !!request.rating && (
-          <Text style={styles.ratedText}>You rated this delivery {request.rating} ★</Text>
+          <Text style={[styles.ratedText, isDarkMode && styles.textMuted]}>You rated this delivery {request.rating} ★</Text>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -197,4 +199,18 @@ const styles = StyleSheet.create({
   rateTitle: { fontSize: 13, fontWeight: '700', color: colors.ink, marginBottom: 10 },
   starRow: { flexDirection: 'row', gap: 8 },
   ratedText: { textAlign: 'center', color: colors.muted, fontSize: 12, marginTop: 14 },
+
+  // Dark mode
+  safeDark: { backgroundColor: colors.ink },
+  cardDark: { backgroundColor: '#1a2221', borderColor: '#2d3b38' },
+  textWhite: { color: '#f8f8f8' },
+  textMuted: { color: '#8a9e9f' },
+  activeTagDark: { backgroundColor: '#1e382b' },
+  activeTagTextDark: { color: '#54f0c4' },
+  connectorDark: { backgroundColor: '#2d3b38' },
+  dotDark: { backgroundColor: '#2d3b38' },
+  dotCurrentDark: { borderColor: '#1e382b' },
+  stepCopyCurrentDark: { color: '#54f0c4' },
+  doneBannerDark: { backgroundColor: '#1e382b' },
+  doneBannerTextDark: { color: '#54f0c4' },
 });

@@ -5,10 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function EarningsScreen() {
   const { requests } = useRequests();
   const { user } = useAuth();
+  const { isDarkMode } = useTheme();
 
   // Only show orders YOU completed (accepted & marked completed)
   const completedByMe = requests
@@ -25,7 +27,7 @@ export default function EarningsScreen() {
   const totalEarned = completedByMe.reduce((sum, e) => sum + e.amount, 0);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
       <FlatList
         data={completedByMe}
         keyExtractor={(item) => item.id}
@@ -33,9 +35,9 @@ export default function EarningsScreen() {
         ListHeaderComponent={
           <>
             <View style={styles.top}>
-              <Text style={styles.h2}>Earnings & history</Text>
+              <Text style={[styles.h2, isDarkMode && styles.h2Dark]}>Earnings & history</Text>
             </View>
-            <View style={styles.totalCard}>
+            <View style={[styles.totalCard, isDarkMode && styles.totalCardDark]}>
               <Text style={styles.totalLabel}>Total earnings</Text>
               <Text style={styles.totalValue}>₹{totalEarned}</Text>
               {totalEarned > 0 && (
@@ -46,25 +48,25 @@ export default function EarningsScreen() {
               )}
             </View>
             <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>Completed deliveries</Text>
+              <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark]}>Completed deliveries</Text>
             </View>
           </>
         }
         renderItem={({ item }) => (
-          <View style={styles.historyCard}>
+          <View style={[styles.historyCard, isDarkMode && styles.historyCardDark]}>
             <View style={styles.emojiBox}>
               <Text style={styles.emoji}>{item.emoji}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.itemName}>{item.itemName}</Text>
-              <Text style={styles.itemSub}>
+              <Text style={[styles.itemName, isDarkMode && styles.itemNameDark]}>{item.itemName}</Text>
+              <Text style={[styles.itemSub, isDarkMode && styles.itemSubDark]}>
                 For {item.forWhom} · {item.date}
               </Text>
             </View>
-            <Text style={styles.amount}>+₹{item.amount}</Text>
+            <Text style={[styles.amount, isDarkMode && styles.amountDark]}>+₹{item.amount}</Text>
           </View>
         )}
-        ListEmptyComponent={<Text style={styles.emptyText}>No completed deliveries yet.</Text>}
+        ListEmptyComponent={<Text style={[styles.emptyText, isDarkMode && styles.itemSubDark]}>No completed deliveries yet.</Text>}
         initialNumToRender={8}
         maxToRenderPerBatch={5}
         windowSize={5}
@@ -115,4 +117,14 @@ const styles = StyleSheet.create({
   itemSub: { fontSize: 11, color: colors.muted, marginTop: 4 },
   amount: { fontSize: 14, fontWeight: '700', color: colors.green },
   emptyText: { textAlign: 'center', color: colors.muted, fontSize: 13, marginTop: 30 },
+
+  // Dark mode
+  safeDark: { backgroundColor: colors.ink },
+  h2Dark: { color: '#f8f8f8' },
+  totalCardDark: { backgroundColor: '#135c4b' },
+  sectionTitleDark: { color: '#f8f8f8' },
+  historyCardDark: { backgroundColor: '#1a2221', borderColor: '#2d3b38' },
+  itemNameDark: { color: '#f8f8f8' },
+  itemSubDark: { color: '#8a9e9f' },
+  amountDark: { color: '#54f0c4' },
 });

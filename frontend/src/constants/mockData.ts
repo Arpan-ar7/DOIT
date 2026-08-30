@@ -36,7 +36,7 @@ export const EXPIRY_OPTIONS: ExpiryOption[] = [
   { hours: 4, label: '4h' },
   { hours: 6, label: '6h' },
 ];
-export const DEFAULT_EXPIRY_HOURS = 4;
+export const DEFAULT_EXPIRY_HOURS = 6;
 export const DEFAULT_DELIVERY_FEE = 10;
 
 // NEW — describes the person who accepted a request, from the REQUESTER's

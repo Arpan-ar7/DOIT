@@ -16,11 +16,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { isUsernameFormatValid, isUsernameTaken } from '../utils/username';
+import { useTheme } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 import Avatar from '../components/Avatar';
 
 export default function SettingsScreen() {
   const { user, updateProfile, logout } = useAuth();
+  const { isDarkMode } = useTheme();
 
   const [name, setName] = useState(user?.name ?? '');
   const [username, setUsername] = useState(user?.username ?? '');
@@ -104,35 +106,35 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScreenHeader title="Settings" />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Profile</Text>
+            <Text style={[styles.sectionTitle, isDarkMode && styles.textWhite]}>Profile</Text>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, isDarkMode && styles.cardDark]}>
             <View style={styles.photoRow}>
               <Avatar initials={(user?.username ?? 'S').slice(0, 2).toUpperCase()} imageUri={photoUri} size={64} />
-              <Pressable style={styles.changePhotoBtn} onPress={handlePickPhoto}>
-                <Ionicons name="camera-outline" size={15} color={colors.green} />
-                <Text style={styles.changePhotoText}>Change photo</Text>
+              <Pressable style={[styles.changePhotoBtn, isDarkMode && styles.changePhotoBtnDark]} onPress={handlePickPhoto}>
+                <Ionicons name="camera-outline" size={15} color={isDarkMode ? '#54f0c4' : colors.green} />
+                <Text style={[styles.changePhotoText, isDarkMode && styles.changePhotoTextDark]}>Change photo</Text>
               </Pressable>
             </View>
 
-            <Text style={styles.label}>Full name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor="#9ba6a0" />
+            <Text style={[styles.label, isDarkMode && styles.labelDark]}>Full name</Text>
+            <TextInput style={[styles.input, isDarkMode && styles.inputDark]} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor="#8a9e9f" />
 
-            <Text style={styles.label}>Username</Text>
-            <View style={styles.usernameRow}>
+            <Text style={[styles.label, isDarkMode && styles.labelDark]}>Username</Text>
+            <View style={[styles.usernameRow, isDarkMode && styles.inputDark]}>
               <Text style={styles.usernamePrefix}>@</Text>
               <TextInput
-                style={styles.usernameInput}
+                style={[styles.usernameInput, isDarkMode && styles.textWhite]}
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
                 placeholder="username"
-                placeholderTextColor="#9ba6a0"
+                placeholderTextColor="#8a9e9f"
               />
             </View>
             {trimmedUsername.length > 0 && (
@@ -167,13 +169,13 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Preferences</Text>
+            <Text style={[styles.sectionTitle, isDarkMode && styles.textWhite]}>Preferences</Text>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, isDarkMode && styles.cardDark]}>
             <View style={styles.switchRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.switchLabel}>Push notifications</Text>
-                <Text style={styles.switchSub}>Get notified when your request is accepted or updated.</Text>
+                <Text style={[styles.switchLabel, isDarkMode && styles.textWhite]}>Push notifications</Text>
+                <Text style={[styles.switchSub, isDarkMode && styles.textMuted]}>Get notified when your request is accepted or updated.</Text>
               </View>
               <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled} trackColor={{ true: colors.green }} />
             </View>
@@ -181,22 +183,22 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Account</Text>
+            <Text style={[styles.sectionTitle, isDarkMode && styles.textWhite]}>Account</Text>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, isDarkMode && styles.cardDark]}>
             <Pressable style={styles.menuRow} onPress={() => setPasswordNotice(true)}>
-              <Ionicons name="key-outline" size={18} color={colors.green} />
-              <Text style={styles.menuLabel}>Change password</Text>
+              <Ionicons name="key-outline" size={18} color={isDarkMode ? '#54f0c4' : colors.green} />
+              <Text style={[styles.menuLabel, isDarkMode && styles.textWhite]}>Change password</Text>
               <Ionicons name="chevron-forward" size={16} color="#9ba6a0" />
             </Pressable>
             {passwordNotice && (
-              <Text style={styles.noticeText}>Password changes will be available soon.</Text>
+              <Text style={[styles.noticeText, isDarkMode && styles.textMuted]}>Password changes will be available soon.</Text>
             )}
           </View>
 
-          <Pressable style={styles.logoutBtn} onPress={logout}>
-            <Ionicons name="log-out-outline" size={18} color="#c14b30" />
-            <Text style={styles.logoutText}>Log out</Text>
+          <Pressable style={[styles.logoutBtn, isDarkMode && styles.logoutBtnDark]} onPress={logout}>
+            <Ionicons name="log-out-outline" size={18} color="#e74c3c" />
+            <Text style={[styles.logoutText, isDarkMode && { color: '#e74c3c' }]}>Log out</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -267,4 +269,15 @@ const styles = StyleSheet.create({
     borderColor: '#f3c9c0',
   },
   logoutText: { color: '#c14b30', fontSize: 14, fontWeight: '800' },
+
+  // Dark mode
+  safeDark: { backgroundColor: colors.ink },
+  textWhite: { color: '#f8f8f8' },
+  textMuted: { color: '#8a9e9f' },
+  cardDark: { backgroundColor: '#1a2221', borderColor: '#2d3b38' },
+  changePhotoBtnDark: { backgroundColor: '#1e382b' },
+  changePhotoTextDark: { color: '#54f0c4' },
+  labelDark: { color: '#aab6b8' },
+  inputDark: { backgroundColor: '#121817', borderColor: '#2d3b38', color: '#fff' },
+  logoutBtnDark: { backgroundColor: '#2a1a1a', borderColor: '#4a2a2a' },
 });
