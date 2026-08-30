@@ -10,17 +10,12 @@ import { horror, radius, spacing } from '../../constants/theme';
 import { CRAVING_LABELS } from '../../constants/mockData';
 import { useCravings } from '../../context/CravingsContext';
 import { useAuth } from '../../context/AuthContext';
+import { getMessages, sendMessage as sendRealMessage, subscribeToMessages, markMessagesRead, MessageRow } from '../../lib/messagesApi';
 
 // @ts-ignore
-import batImg from '../../assets/horror/bat.png';
+import batImg from '../../assets/horror/bat.jpg';
 
-type LocalMessage = {
-  id: string;
-  senderId: string;
-  senderName: string;
-  content: string;
-  createdAt: string;
-};
+
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -41,12 +36,13 @@ export default function CravingDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { getCravingById, acceptCraving } = useCravings();
+  const { getCravingById, acceptCraving, markAsDelivered } = useCravings();
 
   const craving = getCravingById(id ?? '');
-  const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [messages, setMessages] = useState<MessageRow[]>([]);
   const [msgText, setMsgText] = useState('');
   const [accepting, setAccepting] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const acceptLabel = useRef(getRandomAcceptLabel()).current;
 
   const fadeIn = useRef(new Animated.Value(0)).current;
@@ -58,18 +54,53 @@ export default function CravingDetailScreen() {
   const isAccepter = craving?.acceptedBy?.id === user?.id;
   const canChat = craving?.status === 'accepted' && (isOwn || isAccepter);
 
-  const sendMessage = useCallback(() => {
-    if (!msgText.trim() || !user) return;
-    const msg: LocalMessage = {
-      id: `msg_${Date.now()}`,
-      senderId: user.id,
-      senderName: user.name,
-      content: msgText.trim(),
-      createdAt: new Date().toISOString(),
+  useEffect(() => {
+    if (!craving?.id || !canChat || !user?.id) return;
+    let cancelled = false;
+
+    getMessages(craving.id).then((rows) => {
+      if (!cancelled) setMessages(rows);
+    });
+
+    markMessagesRead(craving.id, user.id).catch(() => {});
+
+    const unsubscribe = subscribeToMessages(craving.id, (msg) => {
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      if (msg.sender_id !== user.id) {
+        markMessagesRead(craving.id, user.id).catch(() => {});
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
     };
-    setMessages((prev) => [...prev, msg]);
+  }, [craving?.id, canChat, user?.id]);
+
+  const sendMessage = useCallback(async () => {
+    const content = msgText.trim();
+    if (!content || !craving?.id || !user) return;
+    
     setMsgText('');
-  }, [msgText, user]);
+    const optimistic: MessageRow = {
+      id: `pending-${Date.now()}`,
+      request_id: craving.id,
+      sender_id: user.id,
+      content,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    };
+    
+    setMessages((prev) => [...prev, optimistic]);
+
+    try {
+      const saved = await sendRealMessage(craving.id, user.id, content);
+      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? saved : m)));
+    } catch (e) {
+      setMessages((prev) => prev.filter((m) => !m.id.startsWith('pending-')));
+      setMsgText(content);
+    }
+  }, [msgText, craving?.id, user]);
 
   if (!craving) {
     return (
@@ -91,6 +122,12 @@ export default function CravingDetailScreen() {
     setAccepting(true);
     await acceptCraving(craving.id);
     setAccepting(false);
+  };
+
+  const handleMarkDelivered = async () => {
+    setCompleting(true);
+    await markAsDelivered(craving.id);
+    setCompleting(false);
   };
 
   const statusLabel = craving.status === 'accepted'
@@ -168,6 +205,18 @@ export default function CravingDetailScreen() {
                 </Pressable>
               )}
 
+              {craving.status === 'accepted' && isAccepter && (
+                <Pressable
+                  style={[styles.acceptBtn, { backgroundColor: horror.redDark }, completing && { opacity: 0.5 }]}
+                  onPress={handleMarkDelivered}
+                  disabled={completing}
+                >
+                  <Text style={styles.acceptBtnText}>
+                    {completing ? '⏳ Finalizing...' : '📍 Mark as Delivered'}
+                  </Text>
+                </Pressable>
+              )}
+
               {craving.status === 'open' && isOwn && (
                 <View style={styles.waitBanner}>
                   <Text style={styles.waitText}>⏳ Waiting for a midnight hero...</Text>
@@ -197,13 +246,14 @@ export default function CravingDetailScreen() {
             </Animated.View>
           }
           renderItem={({ item }) => {
-            const isMine = item.senderId === user?.id;
+            const isMine = item.sender_id === user?.id;
+            const senderName = isMine ? user?.name : (isOwn ? craving.acceptedBy?.name : craving.postedBy.name) || 'Ghost';
             return (
               <View style={[styles.msgRow, isMine && styles.msgRowMine]}>
                 <View style={[styles.msgBubble, isMine ? styles.msgBubbleMine : styles.msgBubbleOther]}>
-                  {!isMine && <Text style={styles.msgSender}>{item.senderName}</Text>}
+                  {!isMine && <Text style={styles.msgSender}>{senderName}</Text>}
                   <Text style={styles.msgContent}>{item.content}</Text>
-                  <Text style={styles.msgTime}>{timeAgo(item.createdAt)}</Text>
+                  <Text style={styles.msgTime}>{timeAgo(item.created_at)}</Text>
                 </View>
               </View>
             );

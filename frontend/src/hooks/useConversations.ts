@@ -8,6 +8,8 @@ export type Conversation = {
   unread: boolean;
 };
 
+type ConversationSummary = { lastMessage: MessageRow; unreadCount: number };
+
 // A conversation is listed only while the request is actively in progress —
 // chat opens on accept and closes once completed/cancelled (matches
 // messages RLS, which also stops returning rows past completion).
@@ -17,7 +19,7 @@ function isParticipant(r: DeliveryRequest, userId: string) {
 }
 
 export function useConversations(requests: DeliveryRequest[], userId: string) {
-  const [summaries, setSummaries] = useState<Record<string, { lastMessage: MessageRow; unreadCount: number }>>({});
+  const [summaries, setSummaries] = useState<Record<string, ConversationSummary>>({});
   const [loading, setLoading] = useState(true);
   const requestsRef = useRef(requests);
   requestsRef.current = requests;
@@ -75,5 +77,14 @@ export function useConversations(requests: DeliveryRequest[], userId: string) {
 
   const unreadCount = conversations.filter((c) => c.unread).length;
 
-  return { conversations, unreadCount, loading, refresh };
+  // Zero out local unread for a request the moment the user opens the chat
+  const clearUnread = useCallback((requestId: string) => {
+    setSummaries((prev) => {
+      const existing = prev[requestId];
+      if (!existing || existing.unreadCount === 0) return prev;
+      return { ...prev, [requestId]: { ...existing, unreadCount: 0 } };
+    });
+  }, []);
+
+  return { conversations, unreadCount, loading, refresh, clearUnread };
 }

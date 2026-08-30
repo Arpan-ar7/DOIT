@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { isExpired, CATEGORIES } from '../../constants/mockData';
 import { useCountdown } from '../../hooks/useCountdown';
 import { routes } from '../../constants/routes';
@@ -15,6 +16,7 @@ export default function RequestDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { isDarkMode } = useTheme();
   const { getRequestById, acceptRequest, cancelRequest } = useRequests();
   const request = getRequestById(id);
   const countdown = useCountdown(request?.expiresAt ?? new Date().toISOString());
@@ -26,10 +28,10 @@ export default function RequestDetailsScreen() {
 
   if (!request) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
         <View style={styles.center}>
           <Text style={styles.notFound}>This request no longer exists.</Text>
-          <Pressable style={styles.btnOutline} onPress={() => router.back()}>
+          <Pressable style={[styles.btnOutline, isDarkMode && styles.btnOutlineDark]} onPress={() => router.back()}>
             <Text style={styles.btnOutlineText}>Go back</Text>
           </Pressable>
         </View>
@@ -70,70 +72,70 @@ export default function RequestDetailsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
       <ScreenHeader title="Request details" />
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
+        <View style={[styles.hero, isDarkMode && styles.cardDark]}>
           <View style={styles.heroTop}>
             <View style={styles.emojiBox}><Text style={styles.emoji}>{request.emoji}</Text></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.itemName}>{request.itemName}</Text>
-              <View style={styles.categoryTag}><Text style={styles.categoryTagText}>{categoryLabel}</Text></View>
-              {!!request.shop && <Text style={styles.shop}>{request.shop}</Text>}
+              <Text style={[styles.itemName, isDarkMode && styles.textWhite]}>{request.itemName}</Text>
+              <View style={[styles.categoryTag, isDarkMode && styles.categoryTagDark]}><Text style={[styles.categoryTagText, isDarkMode && styles.categoryTagTextDark]}>{categoryLabel}</Text></View>
+              {!!request.shop && <Text style={[styles.shop, isDarkMode && styles.textMuted]}>{request.shop}</Text>}
             </View>
           </View>
         </View>
 
-        <View style={styles.priceCard}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Approx item price</Text>
-            <Text style={styles.priceValue}>₹{request.itemBudget}</Text>
+        <View style={[styles.priceCard, isDarkMode && styles.cardDark]}>
+          <View style={[styles.priceRow, isDarkMode && styles.borderDark]}>
+            <Text style={[styles.priceLabel, isDarkMode && styles.textMuted]}>Approx item price</Text>
+            <Text style={[styles.priceValue, isDarkMode && styles.priceDark]}>₹{request.itemBudget}</Text>
           </View>
           <View style={[styles.priceRow, styles.priceRowLast]}>
-            <Text style={styles.priceLabel}>Delivery fee</Text>
-            <Text style={styles.priceValueSmall}>+ ₹{request.deliveryFee}</Text>
+            <Text style={[styles.priceLabel, isDarkMode && styles.textMuted]}>Delivery fee</Text>
+            <Text style={[styles.priceValueSmall, isDarkMode && styles.priceDark]}>+ ₹{request.deliveryFee}</Text>
           </View>
         </View>
 
         {request.status === 'pending' && (
           <View style={styles.expiryRow}>
-            <Ionicons name="time-outline" size={15} color={colors.muted} />
-            <Text style={styles.expiryText}>Expires in {countdown} · Accept only if you're already going out</Text>
+            <Ionicons name="time-outline" size={15} color={isDarkMode ? '#8a9e9f' : colors.muted} />
+            <Text style={[styles.expiryText, isDarkMode && styles.textMuted]}>Expires in {countdown} · Accept only if you're already going out</Text>
           </View>
         )}
 
         {!!request.notes && (
-          <View style={styles.infoBlock}>
-            <View style={styles.infoBlockHeader}><Ionicons name="chatbox-outline" size={16} color={colors.green} /><Text style={styles.infoBlockTitle}>Notes</Text></View>
-            <Text style={styles.infoBlockText}>{request.notes}</Text>
+          <View style={[styles.infoBlock, isDarkMode && styles.cardDark]}>
+            <View style={styles.infoBlockHeader}><Ionicons name="chatbox-outline" size={16} color={isDarkMode ? '#54f0c4' : colors.green} /><Text style={[styles.infoBlockTitle, isDarkMode && styles.textWhite]}>Notes</Text></View>
+            <Text style={[styles.infoBlockText, isDarkMode && styles.textMuted]}>{request.notes}</Text>
           </View>
         )}
 
-        <View style={styles.infoBlock}>
-          <View style={styles.infoBlockHeader}><Ionicons name="location-outline" size={16} color={colors.green} /><Text style={styles.infoBlockTitle}>Delivery location</Text></View>
-          <Text style={styles.infoBlockText}>{request.deliveryLocation}</Text>
+        <View style={[styles.infoBlock, isDarkMode && styles.cardDark]}>
+          <View style={styles.infoBlockHeader}><Ionicons name="location-outline" size={16} color={isDarkMode ? '#54f0c4' : colors.green} /><Text style={[styles.infoBlockTitle, isDarkMode && styles.textWhite]}>Delivery location</Text></View>
+          <Text style={[styles.infoBlockText, isDarkMode && styles.textMuted]}>{request.deliveryLocation}</Text>
         </View>
 
-        <View style={styles.requester}>
-          <Avatar initials={request.requester.initials} size={39} backgroundColor="#f6d8ca" textColor="#a04d2d" />
+        <View style={[styles.requester, isDarkMode && styles.requesterDark]}>
+          <Avatar initials={request.requester.initials} imageUri={request.requester.photoUri} size={39} backgroundColor={isDarkMode ? '#3b2520' : '#f6d8ca'} textColor={isDarkMode ? '#e08369' : '#a04d2d'} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.requesterName}>{request.requester.name}</Text>
-            <Text style={styles.requesterSub}>★ {request.requester.rating.toFixed(1)} · {request.requester.completedRequests} ratings</Text>
+            <Text style={[styles.requesterName, isDarkMode && styles.textWhite]}>{request.requester.name}</Text>
+            <Text style={[styles.requesterSub, isDarkMode && styles.textMuted]}>★ {request.requester.rating.toFixed(1)} · {request.requester.completedRequests} ratings</Text>
           </View>
-          <Ionicons name="shield-checkmark" size={19} color={colors.green} />
+          <Ionicons name="shield-checkmark" size={19} color={isDarkMode ? '#54f0c4' : colors.green} />
         </View>
 
         {!!actionError && <Text style={styles.errorText}>{actionError}</Text>}
 
         {isOwnRequest ? (
           request.status === 'pending' ? (
-            <Pressable style={styles.btnDanger} onPress={handleCancel} disabled={cancelling}>
-              <Text style={styles.btnDangerText}>{cancelling ? 'Cancelling...' : 'Cancel this request'}</Text>
+            <Pressable style={[styles.btnDanger, isDarkMode && styles.btnDangerDark]} onPress={handleCancel} disabled={cancelling}>
+              <Text style={[styles.btnDangerText, isDarkMode && {color: '#e74c3c'}]}>{cancelling ? 'Cancelling...' : 'Cancel this request'}</Text>
             </Pressable>
           ) : request.status === 'cancelled' ? (
-            <View style={styles.cancelledNotice}>
+            <View style={[styles.cancelledNotice, isDarkMode && styles.cancelledNoticeDark]}>
               <Ionicons name="close-circle" size={16} color="#c14b30" />
-              <Text style={styles.cancelledNoticeText}>You cancelled this request.</Text>
+              <Text style={[styles.cancelledNoticeText, isDarkMode && {color: '#e74c3c'}]}>You cancelled this request.</Text>
             </View>
           ) : (
             <Pressable style={styles.btn} onPress={() => router.push(routes.orderStatus(request.id))}>
@@ -200,4 +202,18 @@ const styles = StyleSheet.create({
   btnDangerText: { color: '#c14b30', fontSize: 14, fontWeight: '800' },
   cancelledNotice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#fdf0ee', borderRadius: 14, paddingVertical: 15, marginTop: 18 },
   cancelledNoticeText: { color: '#c14b30', fontSize: 13, fontWeight: '700' },
+
+  // Dark mode
+  safeDark: { backgroundColor: colors.ink },
+  textWhite: { color: '#f8f8f8' },
+  textMuted: { color: '#8a9e9f' },
+  cardDark: { backgroundColor: '#1a2221', borderColor: '#2d3b38' },
+  categoryTagDark: { backgroundColor: '#1e382b' },
+  categoryTagTextDark: { color: '#54f0c4' },
+  borderDark: { borderBottomColor: '#2d3b38' },
+  priceDark: { color: '#54f0c4' },
+  requesterDark: { backgroundColor: '#14251f' },
+  btnOutlineDark: { backgroundColor: 'transparent', borderColor: '#2d3b38' },
+  btnDangerDark: { backgroundColor: '#2a1a1a', borderColor: '#4a2a2a' },
+  cancelledNoticeDark: { backgroundColor: '#2a1a1a', borderColor: '#2a1a1a' },
 });

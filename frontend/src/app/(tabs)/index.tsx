@@ -6,16 +6,27 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing } from '../../constants/theme';
+import { colors as lightColors, darkThemeColors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { CATEGORIES, RequestCategory, isExpired } from '../../constants/mockData';
 import { routes } from '../../constants/routes';
 import RequestCard from '../../components/RequestCard';
 import Avatar from '../../components/Avatar';
+import ThemeToggle from '../../components/ThemeToggle';
+import { supabase } from '../../lib/supabase';
 
 const GOING_OUT_KEY = 'going_out_timestamp';
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'Good morning';
+  if (h >= 12 && h < 17) return 'Good afternoon';
+  if (h >= 17 && h < 21) return 'Good evening';
+  return 'Good night';
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -25,8 +36,26 @@ export default function HomeScreen() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<RequestCategory | 'all'>('all');
 
+  const { isDarkMode, toggleDarkMode } = useTheme();
+  const colors = isDarkMode ? darkThemeColors : lightColors;
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   // ── Going-out toggle state ──
   const [isOut, setIsOut] = useState(false);
+  const [goingOutCount, setGoingOutCount] = useState(0);
+
+  const fetchGoingOutCount = useCallback(async () => {
+    try {
+      const now = new Date().toISOString();
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .gt('going_out_until', now);
+      setGoingOutCount(count ?? 0);
+    } catch (_) {
+      // Column may not exist yet — gracefully ignore
+    }
+  }, []);
 
   const checkGoingOutStatus = useCallback(async () => {
     try {
@@ -41,16 +70,22 @@ export default function HomeScreen() {
     } catch (_) {}
   }, []);
 
-  useEffect(() => { checkGoingOutStatus(); }, [checkGoingOutStatus]);
+  useEffect(() => { checkGoingOutStatus(); fetchGoingOutCount(); }, [checkGoingOutStatus, fetchGoingOutCount]);
 
   async function toggleGoingOut() {
     if (isOut) {
       await AsyncStorage.removeItem(GOING_OUT_KEY);
       setIsOut(false);
+      // Clear going_out_until on profile
+      await supabase.from('profiles').update({ going_out_until: null }).eq('id', user?.id ?? '');
     } else {
+      const until = new Date(Date.now() + TWELVE_HOURS_MS).toISOString();
       await AsyncStorage.setItem(GOING_OUT_KEY, Date.now().toString());
       setIsOut(true);
+      // Set going_out_until on profile
+      await supabase.from('profiles').update({ going_out_until: until }).eq('id', user?.id ?? '');
     }
+    await fetchGoingOutCount();
   }
 
   // CHANGED — CURRENT_USER.id -> the REAL logged-in user's id.
@@ -59,6 +94,7 @@ export default function HomeScreen() {
   const activeRequests = useMemo(() => {
     return requests.filter((r) => {
       if (r.requester.id === user?.id) return false;
+      if (r.isLateNightCraving) return false;
       if (r.status !== 'pending') return false;
       if (isExpired(r.expiresAt)) return false;
       if (category !== 'all' && r.category !== category) return false;
@@ -85,12 +121,15 @@ export default function HomeScreen() {
           <>
             <View style={styles.top}>
               <View>
-                <Text style={styles.greeting}>Good afternoon, {firstName}</Text>
+                <Text style={styles.greeting}>{getGreeting()}, {firstName}</Text>
                 <Text style={styles.h1}>What can you carry?</Text>
               </View>
-              <Pressable onPress={() => router.push(routes.profile())}>
-                <Avatar initials={initials} imageUri={user?.photoUri} size={42} />
-              </Pressable>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <ThemeToggle />
+                <Pressable onPress={() => router.push(routes.profile())}>
+                  <Avatar initials={initials} imageUri={user?.photoUri} size={42} />
+                </Pressable>
+              </View>
             </View>
 
             {!!error && (
@@ -129,17 +168,27 @@ export default function HomeScreen() {
             </ScrollView>
 
             <Pressable style={[styles.outingBanner, isOut && styles.outingBannerActive]} onPress={toggleGoingOut}>
-              <View style={styles.outingIcon}>
-                <Ionicons name={isOut ? 'checkmark-circle' : 'walk-outline'} size={20} color="#fff" />
+              {/* Top row: icon + text + button */}
+              <View style={styles.outingTopRow}>
+                <View style={styles.outingIcon}>
+                  <Ionicons name={isOut ? 'checkmark-circle' : 'walk-outline'} size={20} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.outingTitle}>{isOut ? 'You are currently out' : 'Going out?'}</Text>
+                  <Text style={styles.outingSub}>
+                    {isOut ? 'Tap to mark yourself as back' : 'Tap to let others know you\'re heading out'}
+                  </Text>
+                </View>
+                <View style={styles.outingBtn}>
+                  <Text style={styles.outingBtnText}>{isOut ? "I'm back" : "I'm going out"}</Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.outingTitle}>{isOut ? 'You are currently out' : 'Going out?'}</Text>
-                <Text style={styles.outingSub}>
-                  {isOut ? 'Tap to mark yourself as back' : 'Tap to let others know you\'re heading out'}
+              {/* Bottom count bar */}
+              <View style={styles.outingCountBar}>
+                <Ionicons name="people" size={13} color="#fff" style={{ opacity: 0.85 }} />
+                <Text style={styles.outingCountBarText}>
+                  {goingOutCount > 0 ? `${goingOutCount} people outside right now` : 'No one is outside right now'}
                 </Text>
-              </View>
-              <View style={styles.outingBtn}>
-                <Text style={styles.outingBtnText}>{isOut ? "I'm back" : "I'm going out"}</Text>
               </View>
             </Pressable>
 
@@ -188,7 +237,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   top: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greeting: { fontSize: 13, color: colors.muted, marginBottom: 4 },
@@ -198,19 +247,22 @@ const styles = StyleSheet.create({
   errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fdf0ee', marginHorizontal: spacing.xl, marginTop: 8, padding: 10, borderRadius: 10 },
   errorText: { flex: 1, fontSize: 11, color: '#c14b30' },
   retryText: { fontSize: 11, fontWeight: '700', color: '#c14b30', textDecorationLine: 'underline' },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: spacing.xl, marginTop: 4, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: spacing.xl, marginTop: 4, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 },
   searchInput: { flex: 1, fontSize: 13, color: colors.ink, padding: 0 },
   chipRow: { gap: 8, paddingHorizontal: spacing.xl, marginTop: 10 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   chipActive: { backgroundColor: colors.green, borderColor: colors.green },
   chipText: { fontSize: 12, fontWeight: '700', color: colors.muted },
   chipTextActive: { color: '#fff' },
-  outingBanner: { backgroundColor: colors.green, borderRadius: radius.md, padding: 16, marginHorizontal: spacing.xl, marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  outingBanner: { backgroundColor: colors.green, borderRadius: radius.md, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 0, marginHorizontal: spacing.xl, marginTop: 14, flexDirection: 'column', gap: 0 },
   outingBannerActive: { backgroundColor: '#2d8a62' },
+  outingTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 12 },
   outingIcon: { width: 39, height: 39, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   outingTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
   outingSub: { color: '#fff', opacity: 0.8, fontSize: 12, marginTop: 3 },
-  outingBtn: { backgroundColor: '#fff', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
+  outingCountBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.18)', borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md, marginHorizontal: -16, paddingHorizontal: 16, paddingVertical: 9 },
+  outingCountBarText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  outingBtn: { backgroundColor: colors.surface, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
   outingBtnText: { color: colors.greenDark, fontSize: 12, fontWeight: '800' },
   sectionHead: { paddingHorizontal: spacing.xl, marginTop: 25, marginBottom: 13 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },

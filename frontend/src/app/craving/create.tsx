@@ -11,7 +11,7 @@ import { HOSTEL_OPTIONS, CRAVING_LABELS } from '../../constants/mockData';
 import { useCravings } from '../../context/CravingsContext';
 
 // @ts-ignore
-import batImg from '../../assets/horror/bat.png';
+import batImg from '../../assets/horror/bat.jpg';
 
 export default function CreateCravingScreen() {
   const router = useRouter();

@@ -36,7 +36,7 @@ export const EXPIRY_OPTIONS: ExpiryOption[] = [
   { hours: 4, label: '4h' },
   { hours: 6, label: '6h' },
 ];
-export const DEFAULT_EXPIRY_HOURS = 4;
+export const DEFAULT_EXPIRY_HOURS = 6;
 export const DEFAULT_DELIVERY_FEE = 10;
 
 // NEW — describes the person who accepted a request, from the REQUESTER's
@@ -49,6 +49,7 @@ export type Accepter = {
   completedRequests: number;
   phone: string;
   sharePhone: boolean;
+  photoUri?: string | null;
 };
 
 export type DeliveryRequest = {
@@ -64,6 +65,7 @@ export type DeliveryRequest = {
   expiresAt: string;
   status: RequestStatus;
   rating?: number;
+  isLateNightCraving?: boolean;
   requester: {
     id: string;
     name: string;
@@ -71,6 +73,7 @@ export type DeliveryRequest = {
     hostel: string;
     rating: number;
     completedRequests: number;
+    photoUri?: string | null;
   };
   accepterId?: string;
   accepter?: Accepter; // NEW — populated once accepted; undefined until then

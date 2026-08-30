@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { formatClockTime } from '../../utils/time';
 import { getMessages, sendMessage, subscribeToMessages, markMessagesRead, MessageRow } from '../../lib/messagesApi';
 import Avatar from '../../components/Avatar';
@@ -25,6 +26,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const { getRequestById } = useRequests();
   const { user } = useAuth();
+  const { isDarkMode } = useTheme();
   const request = getRequestById(id);
 
   const [messages, setMessages] = useState<MessageRow[]>([]);
@@ -40,11 +42,16 @@ export default function ChatScreen() {
   const chatOpen = request?.status === 'accepted' || request?.status === 'in_progress';
   const chatEnded = request?.status === 'completed';
 
+  const isRequester = user?.id === request?.requester.id;
   const other = request
-    ? user?.id === request.requester.id
-      ? { name: request.accepter?.name ?? 'Deliverer', initials: request.accepter?.initials ?? '?' }
-      : { name: request.requester.name, initials: request.requester.initials }
+    ? isRequester
+      ? { name: request.accepter?.name ?? 'Deliverer', initials: request.accepter?.initials ?? '?', photoUri: request.accepter?.photoUri }
+      : { name: request.requester.name, initials: request.requester.initials, photoUri: request.requester.photoUri }
     : null;
+
+  const systemMessageText = isRequester
+    ? `${other?.name ?? 'Someone'} accepted your request for ${request?.itemName}`
+    : `You accepted ${other?.name ?? 'Someone'}'s request for ${request?.itemName}`;
 
   useEffect(() => {
     if (!request || !chatOpen || !user) return;
@@ -108,38 +115,38 @@ export default function ChatScreen() {
 
   if (!request) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
         <View style={styles.center}>
-          <Text style={styles.emptyText}>This conversation no longer exists.</Text>
+          <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>This conversation no longer exists.</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.top}>
-          <Pressable style={styles.iconBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={20} color={colors.ink} />
+        <View style={[styles.top, isDarkMode && styles.topDark]}>
+          <Pressable style={[styles.iconBtn, isDarkMode && styles.iconBtnDark]} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color={isDarkMode ? '#fff' : colors.ink} />
           </Pressable>
           <View style={styles.person}>
-            <Avatar initials={other?.initials ?? '?'} backgroundColor="#d4e8f8" textColor="#236b95" />
+            <Avatar initials={other?.initials ?? '?'} imageUri={other?.photoUri} backgroundColor={isDarkMode ? '#1a2e45' : '#d4e8f8'} textColor={isDarkMode ? '#54a0d2' : '#236b95'} />
             <View>
-              <Text style={styles.personName}>{other?.name}</Text>
+              <Text style={[styles.personName, isDarkMode && styles.personNameDark]}>{other?.name}</Text>
             </View>
           </View>
         </View>
 
         {!chatOpen && !chatEnded && (
           <View style={styles.center}>
-            <Text style={styles.emptyText}>Chat opens once this request is accepted.</Text>
+            <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>Chat opens once this request is accepted.</Text>
           </View>
         )}
 
         {chatEnded && (
           <View style={styles.center}>
-            <Text style={styles.emptyText}>This request is completed — the conversation has ended.</Text>
+            <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>This request is completed — the conversation has ended.</Text>
           </View>
         )}
 
@@ -156,25 +163,30 @@ export default function ChatScreen() {
                 contentContainerStyle={styles.chatArea}
                 onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
               >
+                <View style={[styles.systemMessage, isDarkMode && styles.systemMessageDark]}>
+                  <Text style={[styles.systemMessageText, isDarkMode && styles.systemMessageTextDark]}>{systemMessageText}</Text>
+                </View>
+
                 {messages.length === 0 && (
                   <Text style={styles.date}>Say hi to get started</Text>
                 )}
                 {messages.map((m) => {
                   const fromMe = m.sender_id === user?.id;
                   return (
-                    <View key={m.id} style={[styles.bubble, fromMe ? styles.bubbleMe : styles.bubbleThem]}>
-                      <Text style={fromMe ? styles.bubbleTextMe : styles.bubbleTextThem}>{m.content}</Text>
-                      <Text style={styles.bubbleTime}>{formatClockTime(new Date(m.created_at))}</Text>
+                    <View key={m.id} style={[styles.bubble, fromMe ? styles.bubbleMe : [styles.bubbleThem, isDarkMode && styles.bubbleThemDark]]}>
+                      <Text style={fromMe ? styles.bubbleTextMe : [styles.bubbleTextThem, isDarkMode && styles.bubbleTextThemDark]}>{m.content}</Text>
+                      <Text style={[styles.bubbleTime, isDarkMode && !fromMe && styles.bubbleTimeDark]}>{formatClockTime(new Date(m.created_at))}</Text>
                     </View>
                   );
                 })}
               </ScrollView>
             )}
 
-            <View style={styles.inputRow}>
+            <View style={[styles.inputRow, isDarkMode && styles.inputRowDark]}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, isDarkMode && styles.inputBoxDark]}
                 placeholder={`Message ${other?.name?.split(' ')[0] ?? ''}...`}
+                placeholderTextColor={isDarkMode ? '#8a9e9f' : '#b0b0b0'}
                 value={text}
                 onChangeText={setText}
                 onSubmitEditing={handleSend}
@@ -257,4 +269,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  
+  // System Message Styles
+  systemMessage: { backgroundColor: '#eefcf6', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignSelf: 'center', marginBottom: 10 },
+  systemMessageText: { fontSize: 12, color: colors.greenDark, textAlign: 'center' },
+
+  // Dark Mode Styles
+  safeDark: { backgroundColor: colors.ink },
+  topDark: { backgroundColor: colors.ink, borderBottomColor: '#2d3b38' },
+  iconBtnDark: { backgroundColor: '#1a2221' },
+  personNameDark: { color: '#f8f8f8' },
+  emptyTextDark: { color: '#8a9e9f' },
+  systemMessageDark: { backgroundColor: '#1e382b' },
+  systemMessageTextDark: { color: colors.mint, fontWeight: '600' },
+  bubbleThemDark: { backgroundColor: '#1a2221', borderColor: '#2d3b38' },
+  bubbleTextThemDark: { color: '#f8f8f8' },
+  bubbleTimeDark: { color: '#f8f8f8' },
+  inputRowDark: { backgroundColor: colors.ink, borderTopColor: '#2d3b38' },
+  inputBoxDark: { backgroundColor: '#1a2221', borderColor: '#2d3b38', color: '#fff' },
 });
