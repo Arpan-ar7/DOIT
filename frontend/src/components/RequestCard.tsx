@@ -2,9 +2,10 @@ import React, { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import ScalePressable from './ScalePressable';
 import Avatar from './Avatar';
-import { colors, radius, shadow } from '../constants/theme';
+import { colors as lightColors, darkThemeColors, radius, shadow } from '../constants/theme';
 import { DeliveryRequest, isExpired, STATUS_LABELS } from '../constants/mockData';
 import { minutesLeftLabel } from '../utils/time';
+import { useTheme } from '../context/ThemeContext';
 
 type Props = {
   request: DeliveryRequest;
@@ -12,6 +13,13 @@ type Props = {
 };
 
 const RequestCard = memo(function RequestCard({ request, onPress }: Props) {
+  const { isDarkMode } = useTheme();
+  const colors = isDarkMode ? darkThemeColors : lightColors;
+  
+  const styles = React.useMemo(() => getStyles(colors, isDarkMode), [colors, isDarkMode]);
+  const tagStyles = React.useMemo(() => getTagStyles(isDarkMode), [isDarkMode]);
+  const tagTextStyles = React.useMemo(() => getTagTextStyles(isDarkMode), [isDarkMode]);
+
   const isPending = request.status === 'pending';
   // Expiry only means anything while nothing has happened yet. Once
   // accepted/in_progress/completed/cancelled, we show the REAL status
@@ -74,8 +82,8 @@ const RequestCard = memo(function RequestCard({ request, onPress }: Props) {
             initials={request.requester.initials}
             imageUri={request.requester.photoUri}
             size={23}
-            backgroundColor="#f7d5c7"
-            textColor="#994327"
+            backgroundColor={isDarkMode ? '#3a241b' : '#f7d5c7'}
+            textColor={isDarkMode ? '#e68a6b' : '#994327'}
           />
           <Text style={styles.personText} numberOfLines={1}>
             {request.requester.name}
@@ -93,23 +101,23 @@ export default RequestCard;
 
 // Separate style maps (instead of one giant switch inline) so each variant's
 // background + text color are easy to scan and adjust independently.
-const tagStyles = StyleSheet.create({
-  default: { backgroundColor: '#f2f4ee' },
-  expired: { backgroundColor: '#f3e9e6' },
-  cancelled: { backgroundColor: '#fdf0ee' },
-  completed: { backgroundColor: '#dcf2e8' },
-  active: { backgroundColor: '#dcf2e8' },
+const getTagStyles = (isDark: boolean) => StyleSheet.create({
+  default: { backgroundColor: isDark ? '#2c3639' : '#f2f4ee' },
+  expired: { backgroundColor: isDark ? '#3a2a2a' : '#f3e9e6' },
+  cancelled: { backgroundColor: isDark ? '#3d241c' : '#fdf0ee' },
+  completed: { backgroundColor: isDark ? '#1a362a' : '#dcf2e8' },
+  active: { backgroundColor: isDark ? '#1a362a' : '#dcf2e8' },
 });
 
-const tagTextStyles = StyleSheet.create({
-  default: { color: '#627168' },
-  expired: { color: '#a05a48' },
-  cancelled: { color: '#c14b30' },
-  completed: { color: '#0e5545' },
-  active: { color: '#166b57' },
+const getTagTextStyles = (isDark: boolean) => StyleSheet.create({
+  default: { color: isDark ? '#a0b0b4' : '#627168' },
+  expired: { color: isDark ? '#e07a5f' : '#a05a48' },
+  cancelled: { color: isDark ? '#ff6b6b' : '#c14b30' },
+  completed: { color: isDark ? '#54f0c4' : '#0e5545' },
+  active: { color: isDark ? '#54f0c4' : '#166b57' },
 });
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -146,7 +154,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   person: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1 },
-  personText: { fontSize: 12, color: '#526266', flexShrink: 1 },
+  personText: { fontSize: 12, color: colors.muted, flexShrink: 1 },
   tag: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
   tagText: { fontSize: 11, fontWeight: '700' },
 });

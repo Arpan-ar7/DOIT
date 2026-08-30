@@ -3,10 +3,11 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing } from '../../constants/theme';
+import { colors as lightColors, darkThemeColors, radius, spacing } from '../../constants/theme';
 import { CURRENT_USER } from '../../constants/mockData';
 import { routes } from '../../constants/routes';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import Avatar from '../../components/Avatar';
 
 const MENU_ITEMS: { icon: keyof typeof Ionicons.glyphMap; label: string; route?: string }[] = [
@@ -17,6 +18,9 @@ const MENU_ITEMS: { icon: keyof typeof Ionicons.glyphMap; label: string; route?:
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { isDarkMode } = useTheme();
+  const colors = isDarkMode ? darkThemeColors : lightColors;
+  const styles = React.useMemo(() => getStyles(colors, isDarkMode), [colors, isDarkMode]);
 
   const displayName = user?.name || CURRENT_USER.name;
   const initials = displayName.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -81,9 +85,9 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
-  cover: { height: 105, backgroundColor: '#e0ecda' },
+  cover: { height: 105, backgroundColor: isDark ? colors.mint : '#e0ecda' },
   main: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
   name: { fontSize: 21, fontWeight: '700', color: colors.ink, marginTop: 10 },
   username: { fontSize: 12, color: colors.muted, marginTop: 2 },
@@ -92,7 +96,7 @@ const styles = StyleSheet.create({
   stats: { flexDirection: 'row', gap: 8, marginVertical: 20 },
   stat: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: 14,
@@ -105,7 +109,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.lg,
@@ -116,7 +120,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 11,
-    backgroundColor: '#e3f3eb',
+    backgroundColor: isDark ? colors.mint : '#e3f3eb',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -139,9 +143,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: '#fdf0ee',
+    backgroundColor: isDark ? '#3d241c' : '#fdf0ee',
     borderWidth: 1,
-    borderColor: '#f3c9c0',
+    borderColor: isDark ? '#8a3521' : '#f3c9c0',
   },
-  logoutText: { color: '#c14b30', fontSize: 14, fontWeight: '800' },
+  logoutText: { color: isDark ? '#ff6b6b' : '#c14b30', fontSize: 14, fontWeight: '800' },
 });

@@ -14,6 +14,20 @@ export const colors = {
   blue: '#e8f3ff',
 };
 
+export const darkThemeColors = {
+  ink: '#f8f8f8',
+  muted: '#a0b0b4',
+  cream: '#121212',
+  surface: '#1e1e1e',
+  line: '#2c3639',
+  green: '#22a083',
+  greenDark: '#54f0c4',
+  mint: '#1a362a',
+  orange: '#ff9865',
+  yellow: '#e6c86e',
+  blue: '#1a2e45',
+};
+
 /** Horror palette — Late Night Cravings section only */
 export const horror = {
   bg: '#141414',

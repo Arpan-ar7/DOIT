@@ -6,13 +6,15 @@ import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing } from '../../constants/theme';
+import { colors as lightColors, darkThemeColors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { CATEGORIES, RequestCategory, isExpired } from '../../constants/mockData';
 import { routes } from '../../constants/routes';
 import RequestCard from '../../components/RequestCard';
 import Avatar from '../../components/Avatar';
+import ThemeToggle from '../../components/ThemeToggle';
 import { supabase } from '../../lib/supabase';
 
 const GOING_OUT_KEY = 'going_out_timestamp';
@@ -33,6 +35,10 @@ export default function HomeScreen() {
   const { requests, loading, error, refresh } = useRequests();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<RequestCategory | 'all'>('all');
+
+  const { isDarkMode, toggleDarkMode } = useTheme();
+  const colors = isDarkMode ? darkThemeColors : lightColors;
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   // ── Going-out toggle state ──
   const [isOut, setIsOut] = useState(false);
@@ -118,9 +124,12 @@ export default function HomeScreen() {
                 <Text style={styles.greeting}>{getGreeting()}, {firstName}</Text>
                 <Text style={styles.h1}>What can you carry?</Text>
               </View>
-              <Pressable onPress={() => router.push(routes.profile())}>
-                <Avatar initials={initials} imageUri={user?.photoUri} size={42} />
-              </Pressable>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <ThemeToggle />
+                <Pressable onPress={() => router.push(routes.profile())}>
+                  <Avatar initials={initials} imageUri={user?.photoUri} size={42} />
+                </Pressable>
+              </View>
             </View>
 
             {!!error && (
@@ -228,7 +237,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   top: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greeting: { fontSize: 13, color: colors.muted, marginBottom: 4 },
@@ -238,10 +247,10 @@ const styles = StyleSheet.create({
   errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fdf0ee', marginHorizontal: spacing.xl, marginTop: 8, padding: 10, borderRadius: 10 },
   errorText: { flex: 1, fontSize: 11, color: '#c14b30' },
   retryText: { fontSize: 11, fontWeight: '700', color: '#c14b30', textDecorationLine: 'underline' },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: spacing.xl, marginTop: 4, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: spacing.xl, marginTop: 4, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 },
   searchInput: { flex: 1, fontSize: 13, color: colors.ink, padding: 0 },
   chipRow: { gap: 8, paddingHorizontal: spacing.xl, marginTop: 10 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   chipActive: { backgroundColor: colors.green, borderColor: colors.green },
   chipText: { fontSize: 12, fontWeight: '700', color: colors.muted },
   chipTextActive: { color: '#fff' },
@@ -253,7 +262,7 @@ const styles = StyleSheet.create({
   outingSub: { color: '#fff', opacity: 0.8, fontSize: 12, marginTop: 3 },
   outingCountBar: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.18)', borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md, marginHorizontal: -16, paddingHorizontal: 16, paddingVertical: 9 },
   outingCountBarText: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  outingBtn: { backgroundColor: '#fff', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
+  outingBtn: { backgroundColor: colors.surface, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
   outingBtnText: { color: colors.greenDark, fontSize: 12, fontWeight: '800' },
   sectionHead: { paddingHorizontal: spacing.xl, marginTop: 25, marginBottom: 13 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },

@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, horror } from '../constants/theme';
+import { colors as lightColors, darkThemeColors, horror } from '../constants/theme';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useTheme } from '../context/ThemeContext';
 
 type TabMeta = {
   active: keyof typeof Ionicons.glyphMap;
@@ -30,6 +31,10 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
   const insets = useSafeAreaInsets();
   const visibleRoutes = state.routes.filter((r: any) => ICON_MAP[r.name]);
 
+  const { isDarkMode } = useTheme();
+  const colors = isDarkMode ? darkThemeColors : lightColors;
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   const isHorror = state.routes[state.index].name === 'cravings';
 
   return (
@@ -46,6 +51,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
           return (
             <TabItem
               key={route.key}
+              colors={colors}
               focused={focused}
               iconName={focused ? meta.active : meta.inactive}
               label={label}
@@ -68,6 +74,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
 }
 
 function TabItem({
+  colors,
   focused,
   iconName,
   label,
@@ -77,6 +84,7 @@ function TabItem({
   onPress,
   onLongPress,
 }: {
+  colors: any;
   focused: boolean;
   iconName: keyof typeof Ionicons.glyphMap;
   label: string;
@@ -104,6 +112,8 @@ function TabItem({
   const activeGlow = glowColor ?? colors.green;
   const activeLabelColor = bubbleColor ?? colors.green;
 
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   return (
     <Pressable style={styles.tab} onPress={onPress} onLongPress={onLongPress} accessibilityRole="button">
       <Animated.View
@@ -127,7 +137,7 @@ function TabItem({
           },
         ]}
       >
-        <Ionicons name={iconName} size={focused ? 22 : 20} color={focused ? '#fff' : '#8a9898'} />
+        <Ionicons name={iconName} size={focused ? 22 : 20} color={focused ? '#fff' : colors.muted} />
         {!!badge && badge > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
@@ -148,7 +158,7 @@ function TabItem({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   wrapper: {
     position: 'absolute',
     bottom: 0,
@@ -159,7 +169,7 @@ const styles = StyleSheet.create({
   },
   bar: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 26,
     paddingVertical: 6,
     paddingHorizontal: 8,
@@ -197,7 +207,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 9,
     fontWeight: '600',
-    color: '#8a9898',
+    color: colors.muted,
     marginTop: 2,
   },
   labelActive: {

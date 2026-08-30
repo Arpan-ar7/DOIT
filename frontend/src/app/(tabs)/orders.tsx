@@ -4,20 +4,21 @@ import AnimatedEmptyState from '../../components/AnimatedEmptyState';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing } from '../../constants/theme';
+import { colors as lightColors, darkThemeColors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { isExpired, STATUS_LABELS, CATEGORIES, DeliveryRequest } from '../../constants/mockData';
 import { minutesLeftLabel } from '../../utils/time';
 import { routes } from '../../constants/routes';
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  pending: { bg: '#f2f4ee', text: '#627168' },
-  expired: { bg: '#f3e9e6', text: '#a05a48' },
-  cancelled: { bg: '#fdf0ee', text: '#c14b30' },
-  completed: { bg: '#dcf2e8', text: '#0e5545' },
-  active: { bg: '#dcf2e8', text: '#166b57' },
-};
+const getStatusColors = (isDark: boolean) => ({
+  pending: { bg: isDark ? '#2c3639' : '#f2f4ee', text: isDark ? '#a0b0b4' : '#627168' },
+  expired: { bg: isDark ? '#3a2a2a' : '#f3e9e6', text: isDark ? '#e07a5f' : '#a05a48' },
+  cancelled: { bg: isDark ? '#3d241c' : '#fdf0ee', text: isDark ? '#ff6b6b' : '#c14b30' },
+  completed: { bg: isDark ? '#1a362a' : '#dcf2e8', text: isDark ? '#54f0c4' : '#0e5545' },
+  active: { bg: isDark ? '#1a362a' : '#dcf2e8', text: isDark ? '#54f0c4' : '#166b57' },
+});
 
 function getStatusBadge(request: DeliveryRequest) {
   const isPending = request.status === 'pending';
@@ -33,6 +34,11 @@ export default function OrdersScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { requests, loading, refresh } = useRequests();
+
+  const { isDarkMode } = useTheme();
+  const colors = isDarkMode ? darkThemeColors : lightColors;
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+  const STATUS_COLORS = React.useMemo(() => getStatusColors(isDarkMode), [isDarkMode]);
 
   // CHANGED — CURRENT_USER.id -> real user id.
   const acceptedByMe = requests.filter((r) => r.accepterId === user?.id);
@@ -57,7 +63,7 @@ export default function OrdersScreen() {
 
   function renderOrderRow(request: DeliveryRequest) {
     const badge = getStatusBadge(request);
-    const badgeColors = STATUS_COLORS[badge.key];
+    const badgeColors = (STATUS_COLORS as Record<string, { bg: string; text: string }>)[badge.key];
     const total = request.itemBudget + request.deliveryFee;
     const categoryLabel = CATEGORIES.find((c) => c.key === request.category)?.label ?? 'Other';
 
@@ -129,7 +135,7 @@ export default function OrdersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
   top: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
@@ -137,7 +143,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 12, color: colors.muted, marginTop: 4 },
   sectionHead: { marginTop: 22, marginBottom: 10 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 13, marginBottom: 9 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 13, marginBottom: 9 },
   emojiBox: { width: 44, height: 44, borderRadius: 13, backgroundColor: colors.yellow, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 20 },
   itemName: { fontSize: 14, fontWeight: '700', color: colors.ink },
