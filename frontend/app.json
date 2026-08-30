@@ -4,17 +4,17 @@
     "slug": "unicart",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/Unicart_logo1.jpg",
+    "icon": "./assets/images/logo.png",
     "scheme": "unicart",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/Unicart_logo1.jpg"
+      "icon": "./assets/images/logo.png"
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/Unicart_logo1.jpg"
+        "foregroundImage": "./assets/images/logo.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.hex2.unicart",
@@ -36,7 +36,14 @@
           "imageWidth": 76
         }
       ],
-      "expo-image"
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share images in chat.",
+          "cameraPermission": "The app accesses your camera to let you take and send photos in chat."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

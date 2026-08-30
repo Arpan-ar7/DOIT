@@ -71,7 +71,11 @@ class ApiError extends Error {
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
+  let token = data.session?.access_token;
+  if (!token) {
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    token = refreshed.session?.access_token;
+  }
   if (!token) {
     throw new ApiError('Your session has expired. Please log in again to continue.', 401);
   }

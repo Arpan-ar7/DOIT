@@ -1,62 +1,77 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, StatusBar as RNStatusBar } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
-
-const STORAGE_KEY = 'going_out_timestamp';
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
 export default function GoingOutScreen() {
   const [isOut, setIsOut] = useState(false);
   const [since, setSince] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount, check if there's a stored going-out timestamp that's still valid
+  // On mount, check if user's is_going_out status is true in profiles table
   const checkStatus = useCallback(async () => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const ts = parseInt(stored, 10);
-        if (Date.now() - ts < TWELVE_HOURS_MS) {
-          setIsOut(true);
-          setSince(new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-        } else {
-          // Expired — clear it
-          await AsyncStorage.removeItem(STORAGE_KEY);
-          setIsOut(false);
-          setSince(null);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const uid = sessionData.session?.user.id;
+      if (uid) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('is_going_out')
+          .eq('id', uid)
+          .single();
+        if (!error && data) {
+          setIsOut(Boolean(data.is_going_out));
         }
       }
     } catch (_) {
-      // ignore storage errors
+      // ignore errors
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     checkStatus();
+
+    // Listen for realtime updates to current user profile
+    const channel = supabase
+      .channel('public:profiles_going_out_screen')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        async (payload) => {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const uid = sessionData.session?.user.id;
+          if (uid && payload.new && (payload.new as any).id === uid && (payload.new as any).is_going_out !== undefined) {
+            setIsOut(Boolean((payload.new as any).is_going_out));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [checkStatus]);
 
   async function handleGoingOut() {
-    const now = Date.now();
-    const until = new Date(now + TWELVE_HOURS_MS).toISOString();
-    await AsyncStorage.setItem(STORAGE_KEY, now.toString());
     setIsOut(true);
-    setSince(new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    setSince(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
-    if (uid) await supabase.from('profiles').update({ going_out_until: until }).eq('id', uid);
+    if (uid) {
+      await supabase.from('profiles').update({ is_going_out: true }).eq('id', uid);
+    }
   }
 
   async function handleBack() {
-    await AsyncStorage.removeItem(STORAGE_KEY);
     setIsOut(false);
     setSince(null);
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
-    if (uid) await supabase.from('profiles').update({ going_out_until: null }).eq('id', uid);
+    if (uid) {
+      await supabase.from('profiles').update({ is_going_out: false }).eq('id', uid);
+    }
   }
 
   if (loading) return <View style={styles.safe} />;

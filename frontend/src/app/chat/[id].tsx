@@ -128,24 +128,8 @@ export default function ChatScreen() {
     }
   }
 
-  async function handlePickImage() {
-    if (!request || !user || sending || uploadingImage) return;
-
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Please allow photo gallery access to send images.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (result.canceled || !result.assets[0]?.uri) return;
-
-    const localUri = result.assets[0].uri;
+  async function processSelectedImage(localUri: string) {
+    if (!request || !user) return;
     setUploadingImage(true);
 
     const tempId = `pending-img-${Date.now()}`;
@@ -172,6 +156,67 @@ export default function ChatScreen() {
     } finally {
       setUploadingImage(false);
     }
+  }
+
+  async function handleTakePhoto() {
+    if (!request || !user || sending || uploadingImage) return;
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please allow camera access in your device settings to take and send photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) return;
+    await processSelectedImage(result.assets[0].uri);
+  }
+
+  async function handleChooseFromLibrary() {
+    if (!request || !user || sending || uploadingImage) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please allow photo gallery access to send images.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) return;
+    await processSelectedImage(result.assets[0].uri);
+  }
+
+  function handlePickImage() {
+    if (!request || !user || sending || uploadingImage) return;
+
+    Alert.alert(
+      'Send Photo',
+      'Choose an option:',
+      [
+        {
+          text: '📷 Take Photo',
+          onPress: handleTakePhoto,
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: handleChooseFromLibrary,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
   }
 
   if (!request) {

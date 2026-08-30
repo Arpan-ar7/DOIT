@@ -84,20 +84,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(true);
     setIsLoading(false);
 
-    // Register Push Token after successful login / load
+    // Register Push Token after successful login / load in background
     registerForPushNotificationsAsync().then((token) => {
       if (token) {
-        // Alert.alert('Push Token Success', 'Got token: ' + token.slice(0, 10) + '...');
         const platform = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
         apiClient.notifications.registerToken(token, platform).then(() => {
           console.log('Token saved to DB successfully');
         }).catch((err) => {
-          Alert.alert('Backend Error', 'Failed to save token to DB: ' + err.message);
-          console.error('Failed to register push token with backend:', err);
+          console.warn('Failed to register push token with backend:', err);
         });
-      } else {
-        Alert.alert('Token Error', 'Could not get device push token. Check Metro console.');
       }
+    }).catch((err) => {
+      console.warn('Could not get device push token:', err);
     });
   }
 
@@ -136,14 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) return { success: false, error: error.message };
     if (!data.user) return { success: false, error: 'Signup failed. Try again.' };
 
-    if (!data.session) {
-      // "Confirm email" is ON in Supabase — see note above.
-      return {
-        success: false,
-        error: 'Account created, but email confirmation is required. Ask your backend dev to disable "Confirm email" in Supabase for now.',
-      };
-    }
-
     // Step 2 — matching profile row. gr_number is a real integer column.
     const { error: profileError } = await supabase.from('profiles').insert({
       id: data.user.id,
@@ -162,7 +152,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: message };
     }
 
-    await loadProfile(data.user.id);
+    // Step 3 — Explicitly sign in to initialize the active persistent session & JWT token
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password,
+    });
+
+    if (signInError || !signInData.user) {
+      if (!data.session) {
+        return {
+          success: false,
+          error: 'Account created, but email confirmation is required. Ask your backend dev to disable "Confirm email" in Supabase for now.',
+        };
+      }
+      return { success: false, error: signInError?.message || 'Login after signup failed.' };
+    }
+
+    await loadProfile(signInData.user.id);
     return { success: true };
   }
 

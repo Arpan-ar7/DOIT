@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicat
 import ScalePressable from '../../components/ScalePressable';
 import AnimatedEmptyState from '../../components/AnimatedEmptyState';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors as lightColors, darkThemeColors, radius, spacing } from '../../constants/theme';
@@ -15,10 +14,6 @@ import { routes } from '../../constants/routes';
 import RequestCard from '../../components/RequestCard';
 import Avatar from '../../components/Avatar';
 import { supabase } from '../../lib/supabase';
-
-const GOING_OUT_KEY = 'going_out_timestamp';
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
-
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -32,53 +27,90 @@ export default function HomeScreen() {
   const colors = isDarkMode ? darkThemeColors : lightColors;
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  // ── Going-out toggle state ──
+  // ── Dynamic Going-out State (Synced via Supabase profiles table) ──
   const [isOut, setIsOut] = useState(false);
   const [goingOutCount, setGoingOutCount] = useState(0);
 
   const fetchGoingOutCount = useCallback(async () => {
     try {
-      const now = new Date().toISOString();
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
-        .gt('going_out_until', now);
-      setGoingOutCount(count ?? 0);
+        .eq('is_going_out', true);
+      if (!error && typeof count === 'number') {
+        setGoingOutCount(count);
+      }
     } catch (_) {
-      // Column may not exist yet — gracefully ignore
+      // Column may not exist or network error — gracefully ignore
     }
   }, []);
 
   const checkGoingOutStatus = useCallback(async () => {
+    if (!user?.id) return;
     try {
-      const stored = await AsyncStorage.getItem(GOING_OUT_KEY);
-      if (stored) {
-        const ts = parseInt(stored, 10);
-        setIsOut(Date.now() - ts < TWELVE_HOURS_MS);
-        if (Date.now() - ts >= TWELVE_HOURS_MS) await AsyncStorage.removeItem(GOING_OUT_KEY);
-      } else {
-        setIsOut(false);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_going_out')
+        .eq('id', user.id)
+        .single();
+      if (!error && data) {
+        setIsOut(Boolean(data.is_going_out));
       }
     } catch (_) {}
-  }, []);
+  }, [user?.id]);
 
-  useEffect(() => { checkGoingOutStatus(); fetchGoingOutCount(); }, [checkGoingOutStatus, fetchGoingOutCount]);
+  useEffect(() => {
+    fetchGoingOutCount();
+    if (user?.id) {
+      checkGoingOutStatus();
+    }
+
+    // Realtime channel to dynamically sync going-out count and status across all users
+    const channel = supabase
+      .channel('public:profiles_is_going_out')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        (payload) => {
+          fetchGoingOutCount();
+          if (payload.new && (payload.new as any).id === user?.id && (payload.new as any).is_going_out !== undefined) {
+            setIsOut(Boolean((payload.new as any).is_going_out));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchGoingOutCount, checkGoingOutStatus]);
 
   async function toggleGoingOut() {
-    if (isOut) {
-      await AsyncStorage.removeItem(GOING_OUT_KEY);
-      setIsOut(false);
-      // Clear going_out_until on profile
-      await supabase.from('profiles').update({ going_out_until: null }).eq('id', user?.id ?? '');
-    } else {
-      const until = new Date(Date.now() + TWELVE_HOURS_MS).toISOString();
-      await AsyncStorage.setItem(GOING_OUT_KEY, Date.now().toString());
-      setIsOut(true);
-      // Set going_out_until on profile
-      await supabase.from('profiles').update({ going_out_until: until }).eq('id', user?.id ?? '');
+    if (!user?.id) return;
+    const nextState = !isOut;
+    // Optimistic UI update
+    setIsOut(nextState);
+    setGoingOutCount((prev) => Math.max(0, prev + (nextState ? 1 : -1)));
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_going_out: nextState })
+        .eq('id', user.id);
+      if (error) {
+        // Revert on failure
+        setIsOut(!nextState);
+        await fetchGoingOutCount();
+      }
+    } catch (_) {
+      setIsOut(!nextState);
+      await fetchGoingOutCount();
     }
-    await fetchGoingOutCount();
   }
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refresh(), fetchGoingOutCount(), checkGoingOutStatus()]);
+  }, [refresh, fetchGoingOutCount, checkGoingOutStatus]);
 
   // CHANGED — CURRENT_USER.id -> the REAL logged-in user's id.
   const myRequests = requests.filter((r) => r.requester.id === user?.id);
@@ -108,7 +140,7 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.id}
         // Pull-to-refresh — real, live data can change from other people's
         // devices at any time, so give a way to manually re-check.
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} colors={[colors.green]} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={handleRefresh} colors={[colors.green]} />}
         ListHeaderComponent={
           <>
             <View style={styles.top}>
