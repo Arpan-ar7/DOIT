@@ -42,6 +42,13 @@ export async function createRequest(
   requesterId: string,
   payload: CreateRequestInput
 ): Promise<RequestRecord> {
+  // Compute expiry server-side so a DB default / trigger can never override it.
+  // Priority: expiry_hours (explicit hours) > expires_at (ISO string) > default 4 h.
+  const DEFAULT_EXPIRY_H = 4;
+  const computedExpiresAt = payload.expires_at
+    ? payload.expires_at
+    : new Date(Date.now() + (payload.expiry_hours ?? DEFAULT_EXPIRY_H) * 3_600_000).toISOString();
+
   const { data, error } = await supabaseClient
     .from('requests')
     .insert({
@@ -55,6 +62,7 @@ export async function createRequest(
       pickup_location: payload.pickup_location,
       dropoff_location: payload.dropoff_location,
       needed_by: payload.needed_by ?? null,
+      expires_at: computedExpiresAt,
       is_late_night_craving: payload.is_late_night_craving ?? false,
     })
     .select()

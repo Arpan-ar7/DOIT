@@ -24,6 +24,8 @@ export const createRequestSchema = z.object({
   pickup_location: z.string().min(1, 'pickup_location is required'),
   dropoff_location: z.string().min(1, 'dropoff_location is required'),
   needed_by: z.string().datetime().optional(),
+  expires_at: z.string().datetime().optional(),       // ISO string from frontend
+  expiry_hours: z.number().positive().optional(),     // fallback: hours from frontend
   is_late_night_craving: z.boolean().default(false),
 });
 export type CreateRequestInput = z.infer<typeof createRequestSchema>;
