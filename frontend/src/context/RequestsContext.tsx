@@ -125,7 +125,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
       return uniqueRows.map((row) => mapApiRequest(row, profilesById, ratingsByRequestId));
     },
     enabled: isAuthenticated,
-    staleTime: 60000, // 1 minute
+    staleTime: 30000,
   });
 
   const error = queryError ? queryError.message : null;
@@ -138,49 +138,21 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    const channelName = `public:requests:${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel('public:requests_and_ratings')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'requests' },
-        async (payload) => {
-          const newRow = payload.new as ApiRequestRow;
-          const oldRow = payload.old as { id: string };
-
-          if (payload.eventType === 'DELETE') {
-            queryClient.setQueryData<DeliveryRequest[]>(['requests', user?.id], (old) => old ? old.filter(r => r.id !== oldRow.id) : old);
-            return;
-          }
-
-          // Fetch profiles and ratings just for the affected row
-          const profileIds = [newRow.requester_id, newRow.deliverer_id].filter(Boolean) as string[];
-          const [profilesById, ratingsByRequestId] = await Promise.all([
-            getProfilesByIds(profileIds),
-            getRatingsForRequests([newRow.id], user?.id),
-          ]);
-          const updatedRequest = mapApiRequest(newRow, profilesById, ratingsByRequestId);
-
-          queryClient.setQueryData<DeliveryRequest[]>(['requests', user?.id], (old) => {
-            if (!old) return [updatedRequest];
-            const exists = old.some(r => r.id === updatedRequest.id);
-            if (exists) {
-              return old.map(r => r.id === updatedRequest.id ? { ...updatedRequest, rating: updatedRequest.rating ?? r.rating } : r);
-            }
-            return [updatedRequest, ...old];
-          });
+        () => {
+          refetch();
         }
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'ratings' },
-        (payload) => {
-          const newRating = payload.new as { request_id: string; rater_id: string; score: number };
-          if (newRating && newRating.rater_id === user?.id) {
-            queryClient.setQueryData<DeliveryRequest[]>(['requests', user?.id], (old) => {
-              if (!old) return old;
-              return old.map((r) => (r.id === newRating.request_id ? { ...r, rating: newRating.score } : r));
-            });
-          }
+        { event: '*', schema: 'public', table: 'ratings' },
+        () => {
+          refetch();
         }
       )
       .subscribe();
@@ -188,7 +160,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAuthenticated, user?.id, queryClient]);
+  }, [isAuthenticated, refetch]);
 
   async function createRequest(input: NewRequestInput): Promise<ActionResult> {
     try {

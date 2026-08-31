@@ -27,10 +27,18 @@ import { uploadChatImage } from '../../lib/storage';
 import Avatar from '../../components/Avatar';
 
 function isImageUrl(content: string): boolean {
+  if (!content || typeof content !== 'string') return false;
   const t = content.trim().toLowerCase();
   return (
-    (t.startsWith('http://') || t.startsWith('https://') || t.startsWith('file://')) &&
-    (t.includes('/storage/') || t.includes('profilepic') || /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(t))
+    t.startsWith('http://') ||
+    t.startsWith('https://') ||
+    t.startsWith('file://') ||
+    t.startsWith('blob:') ||
+    t.startsWith('content://') ||
+    t.startsWith('data:image/') ||
+    t.includes('/storage/') ||
+    t.includes('profilepic') ||
+    /\.(jpg|jpeg|png|webp|gif|bmp|heic)(\?.*)?$/i.test(t)
   );
 }
 
@@ -48,14 +56,36 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
   const scrollRef = useRef<ScrollView>(null);
 
-  // Chat only opens once the request is accepted — matches
-  // messages_insert_participant RLS (status must be accepted/in_progress).
-  // 'completed' is read-only: the select policy stops returning rows past
-  // that point, so we treat it as ended rather than trying to load history.
-  const chatOpen = request?.status === 'accepted' || request?.status === 'in_progress';
-  const chatEnded = request?.status === 'completed';
+  // Chat buffer: 10 minutes (600,000 ms) after delivery completion
+  const CHAT_BUFFER_MS = 10 * 60 * 1000;
+  const completionTimeStr = request?.completedAt || request?.updatedAt;
+  const completedMs = completionTimeStr ? new Date(completionTimeStr).getTime() : 0;
+  const remainingMs = completedMs ? Math.max(0, completedMs + CHAT_BUFFER_MS - now) : 0;
+  const inBuffer = request?.status === 'completed' && remainingMs > 0;
+  const chatEnded = request?.status === 'completed' && remainingMs <= 0;
+  const chatOpen = request?.status === 'accepted' || request?.status === 'in_progress' || inBuffer;
+
+  // Live 1-second countdown when in the 10-minute completion buffer
+  useEffect(() => {
+    if (request?.status !== 'completed' || remainingMs <= 0) return;
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [request?.status, remainingMs > 0]);
+
+  function formatRemainingTime(ms: number) {
+    const totalSeconds = Math.ceil(ms / 1000);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    if (mins > 0) {
+      return `${mins}m ${secs < 10 ? '0' : ''}${secs}s`;
+    }
+    return `${secs}s`;
+  }
 
   const isRequester = user?.id === request?.requester.id;
   const other = request
@@ -69,7 +99,7 @@ export default function ChatScreen() {
     : `You accepted ${other?.name ?? 'Someone'}'s request for ${request?.itemName}`;
 
   useEffect(() => {
-    if (!request || !chatOpen || !user) return;
+    if (!request || !user) return;
     let cancelled = false;
 
     setLoading(true);
@@ -81,20 +111,34 @@ export default function ChatScreen() {
         if (!cancelled) setLoading(false);
       });
 
-    markMessagesRead(request.id, user.id).catch(() => {});
+    if (chatOpen) {
+      markMessagesRead(request.id, user.id).catch(() => {});
 
-    const unsubscribe = subscribeToMessages(request.id, (msg) => {
-      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
-      if (msg.sender_id !== user.id) {
-        markMessagesRead(request.id, user.id).catch(() => {});
-      }
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
-    });
+      const unsubscribe = subscribeToMessages(request.id, (msg) => {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          // If this is our own message and we have an optimistic pending bubble, replace it
+          const pendingIdx = prev.findIndex(
+            (m) => m.id.startsWith('pending-') && m.sender_id === msg.sender_id && (m.content === msg.content || m.id.startsWith('pending-img-'))
+          );
+          if (pendingIdx !== -1) {
+            const next = [...prev];
+            next[pendingIdx] = msg;
+            return next;
+          }
+          return [...prev, msg];
+        });
+        if (msg.sender_id !== user.id) {
+          markMessagesRead(request.id, user.id).catch(() => {});
+        }
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+      });
 
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
+      return () => {
+        cancelled = true;
+        unsubscribe();
+      };
+    }
   }, [request?.id, chatOpen, user?.id]);
 
   async function handleSend() {
@@ -104,7 +148,7 @@ export default function ChatScreen() {
     setSending(true);
     try {
       // Optimistic bubble — the realtime INSERT event for our own message
-      // still arrives, but the id-dedupe above absorbs it once it does.
+      // still arrives, but the id-dedupe absorbs it once it does.
       const optimistic: MessageRow = {
         id: `pending-${Date.now()}`,
         request_id: request.id,
@@ -117,7 +161,13 @@ export default function ChatScreen() {
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
 
       const saved = await sendMessage(request.id, user.id, content);
-      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? saved : m)));
+      setMessages((prev) => {
+        const alreadyExists = prev.some((m) => m.id === saved.id);
+        if (alreadyExists) {
+          return prev.filter((m) => m.id !== optimistic.id);
+        }
+        return prev.map((m) => (m.id === optimistic.id ? saved : m));
+      });
     } catch (e) {
       // Send failed (offline / RLS) — drop the optimistic bubble and give
       // the text back so nothing is silently lost.
@@ -148,7 +198,13 @@ export default function ChatScreen() {
     try {
       const publicUrl = await uploadChatImage(request.id, localUri);
       const saved = await sendMessage(request.id, user.id, publicUrl);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
+      setMessages((prev) => {
+        const alreadyExists = prev.some((m) => m.id === saved.id);
+        if (alreadyExists) {
+          return prev.filter((m) => m.id !== tempId);
+        }
+        return prev.map((m) => (m.id === tempId ? saved : m));
+      });
     } catch (err: any) {
       console.error('Failed to send image:', err);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -219,6 +275,15 @@ export default function ChatScreen() {
     );
   }
 
+  const uniqueMessages = React.useMemo(() => {
+    const seen = new Set<string>();
+    return messages.filter((m) => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+  }, [messages]);
+
   if (!request) {
     return (
       <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
@@ -244,7 +309,17 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        {/* Closed chat banner (completed requests) */}
+        {/* Active buffer countdown banner */}
+        {inBuffer && (
+          <View style={[styles.bufferBanner, isDarkMode && styles.bufferBannerDark]}>
+            <Ionicons name="time-outline" size={16} color={isDarkMode ? '#ffb38a' : '#c25e00'} />
+            <Text style={[styles.bufferBannerText, isDarkMode && styles.bufferBannerTextDark]}>
+              Delivery completed · Chat will end in {formatRemainingTime(remainingMs)}
+            </Text>
+          </View>
+        )}
+
+        {/* Closed chat banner (completed requests past 10 min) */}
         {chatEnded && (
           <View style={[styles.systemMessage, isDarkMode && styles.systemMessageDark, { marginTop: 12 }]}>
             <Text style={[styles.systemMessageText, isDarkMode && styles.systemMessageTextDark]}>
@@ -257,7 +332,7 @@ export default function ChatScreen() {
           <View style={styles.center}><ActivityIndicator color={colors.green} /></View>
         ) : (
           <>
-            {messages.length === 0 ? (
+            {uniqueMessages.length === 0 ? (
               <View style={styles.center}>
                 <View style={[styles.systemMessage, isDarkMode && styles.systemMessageDark]}>
                   <Text style={[styles.systemMessageText, isDarkMode && styles.systemMessageTextDark]}>{systemMessageText}</Text>
@@ -275,7 +350,7 @@ export default function ChatScreen() {
                 <View style={[styles.systemMessage, isDarkMode && styles.systemMessageDark]}>
                   <Text style={[styles.systemMessageText, isDarkMode && styles.systemMessageTextDark]}>{systemMessageText}</Text>
                 </View>
-                {messages.map((m) => {
+                {uniqueMessages.map((m) => {
                   const fromMe = m.sender_id === user?.id;
                   const isImage = isImageUrl(m.content);
                   return (
@@ -491,6 +566,31 @@ const styles = StyleSheet.create({
   fullImage: {
     width: '100%',
     height: '100%',
+  },
+
+  // Buffer Banner Styles
+  bufferBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#fff4eb',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f7d6bf',
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+  },
+  bufferBannerDark: {
+    backgroundColor: '#352012',
+    borderBottomColor: '#53311c',
+  },
+  bufferBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#a04800',
+  },
+  bufferBannerTextDark: {
+    color: '#ffb38a',
   },
 
   // Dark Mode Styles

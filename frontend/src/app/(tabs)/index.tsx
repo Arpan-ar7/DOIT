@@ -66,8 +66,9 @@ export default function HomeScreen() {
     }
 
     // Realtime channel to dynamically sync going-out count and status across all users
+    const channelName = `public:profiles_is_going_out:${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel('public:profiles_is_going_out')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },
@@ -95,7 +96,7 @@ export default function HomeScreen() {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ is_going_out: nextState })
+        .update({ is_going_out: nextState, updated_at: new Date().toISOString() })
         .eq('id', user.id);
       if (error) {
         // Revert on failure
@@ -205,12 +206,18 @@ export default function HomeScreen() {
                 </View>
               </View>
               {/* Bottom count bar */}
-              <View style={styles.outingCountBar}>
+              <Pressable
+                style={styles.outingCountBar}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  router.push(routes.goingOut());
+                }}
+              >
                 <Ionicons name="people" size={13} color="#fff" style={{ opacity: 0.85 }} />
                 <Text style={styles.outingCountBarText}>
-                  {goingOutCount > 0 ? `${goingOutCount} people outside right now` : 'No one is outside right now'}
+                  {goingOutCount > 0 ? `${goingOutCount} people outside right now · View peers →` : 'No one is outside right now · View →'}
                 </Text>
-              </View>
+              </Pressable>
             </Pressable>
 
             <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active requests near you</Text></View>

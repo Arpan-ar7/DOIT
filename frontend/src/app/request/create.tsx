@@ -7,18 +7,20 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { CATEGORY_EMOJIS, RequestCategory, DEFAULT_EXPIRY_HOURS, DEFAULT_DELIVERY_FEE } from '../../constants/mockData';
 import ScreenHeader from '../../components/ScreenHeader';
 
 export default function CreateRequestScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { createRequest } = useRequests();
   const { isDarkMode } = useTheme();
 
   const [itemName, setItemName] = useState('');
   const [shop, setShop] = useState('');
-  const [deliveryLocation, setDeliveryLocation] = useState('');
+  const [deliveryLocation, setDeliveryLocation] = useState(user?.hostel ?? '');
   const [itemBudget, setItemBudget] = useState('');
   const [deliveryFee, setDeliveryFee] = useState(String(DEFAULT_DELIVERY_FEE));
   const [notes, setNotes] = useState('');

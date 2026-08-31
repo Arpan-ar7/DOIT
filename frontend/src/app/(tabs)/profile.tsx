@@ -49,9 +49,15 @@ export default function ProfileScreen() {
           <Avatar initials={initials} imageUri={user?.photoUri} size={76} />
           <Text style={styles.name}>{displayName}</Text>
           {!!user?.username && <Text style={styles.username}>@{user.username}</Text>}
+          {!!user?.hostel && (
+            <View style={styles.hostelRow}>
+              <Ionicons name="location-outline" size={13} color={colors.muted} />
+              <Text style={styles.hostelText}>{user.hostel}</Text>
+            </View>
+          )}
           <View style={styles.verified}>
             <Ionicons name="checkmark-circle" size={14} color={colors.green} />
-            <Text style={styles.verifiedText}>Verified student · {CURRENT_USER.college}</Text>
+            <Text style={styles.verifiedText}>Verified student · Campus</Text>
           </View>
 
           <View style={styles.stats}>
@@ -107,6 +113,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   main: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
   name: { fontSize: 21, fontWeight: '700', color: colors.ink, marginTop: 10 },
   username: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  hostelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  hostelText: { fontSize: 12, color: colors.muted },
   verified: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   verifiedText: { color: colors.green, fontSize: 12, fontWeight: '700' },
   stats: { flexDirection: 'row', gap: 8, marginVertical: 20 },

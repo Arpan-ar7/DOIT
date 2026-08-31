@@ -9,7 +9,7 @@ import { colors as lightColors, darkThemeColors, radius, spacing } from '../cons
 import { useTheme } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 import { submitReportApi, ReportType } from '../lib/reportsApi';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 type Category = { key: ReportType; label: string; icon: keyof typeof Ionicons.glyphMap; desc: string };
 
@@ -24,12 +24,21 @@ const CATEGORIES: Category[] = [
 
 export default function ReportScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    requestId?: string;
+    reportedUserId?: string;
+    prefilledType?: ReportType;
+    orderName?: string;
+  }>();
+
   const { isDarkMode } = useTheme();
   const colors = isDarkMode ? darkThemeColors : lightColors;
   const styles = React.useMemo(() => getStyles(colors, isDarkMode), [colors, isDarkMode]);
 
-  const [selected, setSelected] = useState<ReportType | null>(null);
-  const [subject, setSubject]   = useState('');
+  const [selected, setSelected] = useState<ReportType | null>(
+    params.prefilledType || (params.requestId ? 'complaint' : null)
+  );
+  const [subject, setSubject]   = useState(params.orderName ? `Issue with order: ${params.orderName}` : '');
   const [desc, setDesc]         = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -42,7 +51,13 @@ export default function ReportScreen() {
     setSubmitting(true);
     setError('');
     try {
-      await submitReportApi({ type: selected, subject: subject.trim(), description: desc.trim() });
+      await submitReportApi({
+        type: selected,
+        subject: subject.trim(),
+        description: desc.trim(),
+        request_id: params.requestId || undefined,
+        reported_user_id: params.reportedUserId || undefined,
+      });
       setDone(true);
     } catch (e: any) {
       setError(e?.message ?? 'Failed to submit. Please try again.');
@@ -54,17 +69,17 @@ export default function ReportScreen() {
   if (done) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScreenHeader title="Report a problem" />
+        <ScreenHeader title={params.requestId ? 'Order Support' : 'Report a problem'} />
         <View style={styles.successWrap}>
           <View style={styles.successIcon}>
             <Ionicons name="checkmark-circle" size={56} color={colors.green} />
           </View>
           <Text style={styles.successTitle}>Report submitted</Text>
           <Text style={styles.successSub}>
-            We've received your report and will look into it shortly. Thank you for helping make the app better!
+            We've received your report for this order and will look into it shortly. Our support team will resolve it.
           </Text>
           <Pressable style={styles.doneBtn} onPress={() => router.back()}>
-            <Text style={styles.doneBtnText}>Back to Settings</Text>
+            <Text style={styles.doneBtnText}>Done</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -73,9 +88,22 @@ export default function ReportScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScreenHeader title="Report a problem" />
+      <ScreenHeader title={params.requestId ? 'Order Help & Support' : 'Report a problem'} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+
+          {/* Order reference tag if linked to a specific order */}
+          {!!params.orderName && (
+            <View style={[styles.orderTag, isDarkMode && styles.orderTagDark]}>
+              <Ionicons name="receipt-outline" size={16} color={colors.green} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.orderTagLabel, isDarkMode && styles.textMuted]}>Order context</Text>
+                <Text style={[styles.orderTagName, isDarkMode && styles.textWhite]} numberOfLines={1}>
+                  {params.orderName}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Category picker */}
           <Text style={styles.sectionLabel}>What's the issue?</Text>
@@ -152,6 +180,24 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   content: { paddingHorizontal: spacing.xl, paddingBottom: 48, paddingTop: 12 },
 
   sectionLabel: { fontSize: 13, fontWeight: '700', color: colors.ink, marginBottom: 10, marginTop: 20 },
+
+  orderTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: isDark ? '#1a2e22' : '#eefcf6',
+    borderWidth: 1,
+    borderColor: isDark ? '#2d4b3b' : '#c3eed9',
+    borderRadius: radius.md,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  orderTagDark: { backgroundColor: '#162b21' },
+  orderTagLabel: { fontSize: 11, color: colors.muted },
+  orderTagName: { fontSize: 13, fontWeight: '700', color: colors.ink, marginTop: 2 },
+  textWhite: { color: '#f8f8f8' },
+  textMuted: { color: '#8a9e9f' },
 
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   catCard: {

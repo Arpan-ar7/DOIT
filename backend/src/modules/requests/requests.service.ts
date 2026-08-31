@@ -212,9 +212,14 @@ export async function confirmCompletion(
     throw new AppError(400, `Cannot complete a request with status "${existing.status}"`);
   }
 
+  const nowIso = new Date().toISOString();
   const { data, error } = await supabaseClient
     .from('requests')
-    .update({ status: 'completed' })
+    .update({
+      status: 'completed',
+      completed_at: nowIso,
+      updated_at: nowIso,
+    })
     .eq('id', requestId)
     .select()
     .single();

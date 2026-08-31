@@ -18,10 +18,18 @@ import { uploadChatImage } from '../../lib/storage';
 import batImg from '../../assets/horror/bat.jpg';
 
 function isImageUrl(content: string): boolean {
+  if (!content || typeof content !== 'string') return false;
   const t = content.trim().toLowerCase();
   return (
-    (t.startsWith('http://') || t.startsWith('https://') || t.startsWith('file://')) &&
-    (t.includes('/storage/') || t.includes('profilepic') || /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(t))
+    t.startsWith('http://') ||
+    t.startsWith('https://') ||
+    t.startsWith('file://') ||
+    t.startsWith('blob:') ||
+    t.startsWith('content://') ||
+    t.startsWith('data:image/') ||
+    t.includes('/storage/') ||
+    t.includes('profilepic') ||
+    /\.(jpg|jpeg|png|webp|gif|bmp|heic)(\?.*)?$/i.test(t)
   );
 }
 
@@ -75,7 +83,19 @@ export default function CravingDetailScreen() {
     markMessagesRead(craving.id, user.id).catch(() => {});
 
     const unsubscribe = subscribeToMessages(craving.id, (msg) => {
-      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        // If this is our own message and we have an optimistic pending bubble, replace it
+        const pendingIdx = prev.findIndex(
+          (m) => m.id.startsWith('pending-') && m.sender_id === msg.sender_id && (m.content === msg.content || m.id.startsWith('pending-img-'))
+        );
+        if (pendingIdx !== -1) {
+          const next = [...prev];
+          next[pendingIdx] = msg;
+          return next;
+        }
+        return [...prev, msg];
+      });
       if (msg.sender_id !== user.id) {
         markMessagesRead(craving.id, user.id).catch(() => {});
       }
@@ -105,7 +125,13 @@ export default function CravingDetailScreen() {
 
     try {
       const saved = await sendRealMessage(craving.id, user.id, content);
-      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? saved : m)));
+      setMessages((prev) => {
+        const alreadyExists = prev.some((m) => m.id === saved.id);
+        if (alreadyExists) {
+          return prev.filter((m) => m.id !== optimistic.id);
+        }
+        return prev.map((m) => (m.id === optimistic.id ? saved : m));
+      });
     } catch (e) {
       setMessages((prev) => prev.filter((m) => !m.id.startsWith('pending-')));
       setMsgText(content);
@@ -131,7 +157,13 @@ export default function CravingDetailScreen() {
     try {
       const publicUrl = await uploadChatImage(craving.id, localUri);
       const saved = await sendRealMessage(craving.id, user.id, publicUrl);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
+      setMessages((prev) => {
+        const alreadyExists = prev.some((m) => m.id === saved.id);
+        if (alreadyExists) {
+          return prev.filter((m) => m.id !== tempId);
+        }
+        return prev.map((m) => (m.id === tempId ? saved : m));
+      });
     } catch (err: any) {
       console.error('Failed to send image:', err);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -236,6 +268,15 @@ export default function CravingDetailScreen() {
     ? '✅ Satisfied'
     : '🔴 Screaming for Help';
 
+  const uniqueMessages = React.useMemo(() => {
+    const seen = new Set<string>();
+    return messages.filter((m) => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+  }, [messages]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <KeyboardAvoidingView
@@ -253,7 +294,7 @@ export default function CravingDetailScreen() {
         </View>
 
         <FlatList
-          data={canChat ? messages : []}
+          data={canChat ? uniqueMessages : []}
           keyExtractor={(item) => item.id}
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: 20 }}

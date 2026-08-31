@@ -24,6 +24,7 @@ type ProfileUpdates = {
   name?: string;
   username?: string;
   hostel?: string;
+  phone?: string;
   photoUri?: string | null;
 };
 
@@ -55,24 +56,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
 
-  function setUserFromProfile(profile: any) {
+  function setUserFromProfile(profile: any, authUser?: any) {
+    const meta = authUser?.user_metadata || {};
     setUser({
-      id: profile.id,
-      name: profile.full_name,
-      email: profile.email,
-      grNo: String(profile.gr_number ?? ''),
-      phone: profile.phone_number ?? '',
-      username: deriveUsername(profile.full_name), // not persisted, see note
-      hostel: '', // not persisted, see note
-      photoUri: profile.profile_picture ?? null,
+      id: profile.id || authUser?.id,
+      name: profile.full_name || meta.full_name || meta.name || 'Student',
+      email: profile.email || authUser?.email || '',
+      grNo: String(profile.gr_number ?? meta.grNo ?? ''),
+      phone: profile.phone_number ?? meta.phone ?? '',
+      username: profile.username || meta.username || deriveUsername(profile.full_name || meta.full_name || 'student'),
+      hostel: profile.hostel || meta.hostel || '',
+      photoUri: profile.profile_picture || meta.avatar_url || null,
       rating: profile.average_rating ?? 0,
       totalRatings: profile.total_ratings ?? 0,
     });
   }
 
   async function loadProfile(userId: string) {
-    const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (error || !profile) {
+    const [profileRes, authUserRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).single(),
+      supabase.auth.getUser(),
+    ]);
+    const profile = profileRes.data;
+    const authUser = authUserRes.data?.user;
+    if (!profile && !authUser) {
       // Profile row missing/unreadable — don't leave the app half-logged-in.
       await supabase.auth.signOut();
       setUser(null);
@@ -80,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return;
     }
-    setUserFromProfile(profile);
+    setUserFromProfile(profile || {}, authUser);
     setIsAuthenticated(true);
     setIsLoading(false);
 
@@ -119,8 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // When a rating is submitted by any requester, the backend updates
     // profiles.average_rating and profiles.total_ratings. Listen for that
     // change and re-load our profile row so the UI reflects new values.
+    const channelName = `auth:profile_ratings:${Math.random().toString(36).slice(2)}`;
     const ratingsChannel = supabase
-      .channel('auth:profile_ratings_refresh')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles' },
@@ -269,48 +277,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       nextUsername = normalized;
     }
 
-    // Push name and profile picture to Supabase.
-    // username/hostel stay local until the DB has matching columns.
     const dbUpdates: any = {};
-    if (updates.name !== undefined && updates.name.trim() !== user.name) {
+    if (updates.name !== undefined) {
       dbUpdates.full_name = updates.name.trim();
+    }
+    if (updates.phone !== undefined) {
+      dbUpdates.phone_number = updates.phone.trim();
     }
 
     // Upload profile picture to Supabase Storage if it's a local file.
-    console.log('[updateProfile] photoUri received:', updates.photoUri);
+    let finalPhotoUrl = user.photoUri;
     if (updates.photoUri !== undefined && updates.photoUri !== null) {
       const isLocalFile = !updates.photoUri.startsWith('http');
-      console.log('[updateProfile] isLocalFile:', isLocalFile);
       if (isLocalFile) {
         try {
-          const publicUrl = await uploadProfilePicture(user.id, updates.photoUri);
-          console.log('[updateProfile] Uploaded. publicUrl:', publicUrl);
-          updates = { ...updates, photoUri: publicUrl };
-          dbUpdates.profile_picture = publicUrl;
+          finalPhotoUrl = await uploadProfilePicture(user.id, updates.photoUri);
+          dbUpdates.profile_picture = finalPhotoUrl;
         } catch (e: any) {
           console.error('[updateProfile] Upload failed:', e);
           return { success: false, error: e.message || 'Failed to upload profile picture.' };
         }
       } else {
+        finalPhotoUrl = updates.photoUri;
         dbUpdates.profile_picture = updates.photoUri;
       }
     } else if (updates.photoUri === null) {
+      finalPhotoUrl = null;
       dbUpdates.profile_picture = null;
     }
 
-    console.log('[updateProfile] dbUpdates:', JSON.stringify(dbUpdates));
-    if (Object.keys(dbUpdates).length > 0) {
-      const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', user.id);
+    // Try writing to profiles table (including username/hostel)
+    const extraDbUpdates: any = { ...dbUpdates };
+    if (updates.username !== undefined) extraDbUpdates.username = nextUsername;
+    if (updates.hostel !== undefined) extraDbUpdates.hostel = updates.hostel.trim();
+
+    if (Object.keys(extraDbUpdates).length > 0) {
+      const { error } = await supabase.from('profiles').update(extraDbUpdates).eq('id', user.id);
       if (error) {
-        console.error('[updateProfile] DB update error:', error);
-        return { success: false, error: error.message };
+        // If column username/hostel doesn't exist on profiles table, retry with core dbUpdates
+        if (error.message?.includes('column') || error.code === '42703') {
+          if (Object.keys(dbUpdates).length > 0) {
+            await supabase.from('profiles').update(dbUpdates).eq('id', user.id);
+          }
+        } else {
+          console.error('[updateProfile] DB update error:', error);
+          return { success: false, error: error.message };
+        }
       }
-      console.log('[updateProfile] DB write success ✅');
-    } else {
-      console.log('[updateProfile] No DB changes to write.');
     }
 
-    setUser({ ...user, ...updates, username: nextUsername });
+    // Also persist in Supabase Auth user metadata
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          full_name: updates.name ? updates.name.trim() : user.name,
+          username: nextUsername,
+          hostel: updates.hostel !== undefined ? updates.hostel.trim() : user.hostel,
+          phone: updates.phone !== undefined ? updates.phone.trim() : user.phone,
+          avatar_url: finalPhotoUrl,
+        },
+      });
+    } catch (authMetaErr) {
+      console.warn('[updateProfile] Failed to update auth metadata:', authMetaErr);
+    }
+
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            name: updates.name !== undefined ? updates.name.trim() : prev.name,
+            username: nextUsername,
+            hostel: updates.hostel !== undefined ? updates.hostel.trim() : prev.hostel,
+            phone: updates.phone !== undefined ? updates.phone.trim() : prev.phone,
+            photoUri: finalPhotoUrl,
+          }
+        : null
+    );
+
     return { success: true };
   }
 

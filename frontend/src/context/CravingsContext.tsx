@@ -100,16 +100,18 @@ export function CravingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const channelName = `public:cravings:${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel('public:cravings')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'requests', filter: 'is_late_night_craving=eq.true' },
-        async () => {
-          await loadCravings();
+        () => {
+          loadCravings();
         }
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };

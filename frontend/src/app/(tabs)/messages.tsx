@@ -13,6 +13,22 @@ import { formatClockTime } from '../../utils/time';
 import { routes } from '../../constants/routes';
 import Avatar from '../../components/Avatar';
 
+function isImageUrl(content: string): boolean {
+  if (!content || typeof content !== 'string') return false;
+  const t = content.trim().toLowerCase();
+  return (
+    t.startsWith('http://') ||
+    t.startsWith('https://') ||
+    t.startsWith('file://') ||
+    t.startsWith('blob:') ||
+    t.startsWith('content://') ||
+    t.startsWith('data:image/') ||
+    t.includes('/storage/') ||
+    t.includes('profilepic') ||
+    /\.(jpg|jpeg|png|webp|gif|bmp|heic)(\?.*)?$/i.test(t)
+  );
+}
+
 export default function MessagesScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -39,6 +55,18 @@ export default function MessagesScreen() {
             user?.id === item.request.requester.id
               ? item.request.accepter?.initials ?? '?'
               : item.request.requester.initials;
+          const isCompletedBuffer = item.request.status === 'completed';
+          const isImage = item.lastMessage ? isImageUrl(item.lastMessage.content) : false;
+          const isFromMe = item.lastMessage?.sender_id === user?.id;
+
+          const previewText = !item.lastMessage
+            ? `About "${item.request.itemName}" · Tap to say hi`
+            : isImage
+            ? isFromMe
+              ? `📷 You sent a photo for this order`
+              : `📷 Received a photo for this order`
+            : `${isFromMe ? 'You: ' : ''}${item.lastMessage.content}`;
+
           return (
             <Pressable style={styles.row} onPress={() => {
               clearUnread(item.request.id);
@@ -59,20 +87,18 @@ export default function MessagesScreen() {
                   <View style={styles.nameRow}>
                     {item.unread && <View style={styles.unreadDot} />}
                     <Text style={styles.name} numberOfLines={1}>{otherName}</Text>
+                    {isCompletedBuffer && (
+                      <View style={[styles.deliveredBadge, isDarkMode && styles.deliveredBadgeDark]}>
+                        <Text style={styles.deliveredBadgeText}>Delivered · Ends soon</Text>
+                      </View>
+                    )}
                   </View>
                   {item.lastMessage && (
                     <Text style={styles.time}>{formatClockTime(new Date(item.lastMessage.created_at))}</Text>
                   )}
                 </View>
                 <Text style={[styles.preview, item.unread && styles.previewUnread]} numberOfLines={1}>
-                  {item.lastMessage
-                    ? `${item.lastMessage.sender_id === user?.id ? 'You: ' : ''}${
-                        (item.lastMessage.content.startsWith('http://') || item.lastMessage.content.startsWith('https://')) &&
-                        (item.lastMessage.content.includes('/storage/') || item.lastMessage.content.includes('ProfilePic') || /\.(jpg|jpeg|png|webp|gif)/i.test(item.lastMessage.content))
-                          ? '📷 Photo'
-                          : item.lastMessage.content
-                      }`
-                    : `About "${item.request.itemName}" · Tap to say hi`}
+                  {previewText}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#9ba6a0" />
@@ -111,6 +137,9 @@ const getStyles = (colors: any) => StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.orange },
   name: { fontSize: 14, fontWeight: '700', color: colors.ink, flexShrink: 1 },
+  deliveredBadge: { backgroundColor: '#eefcf6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  deliveredBadgeDark: { backgroundColor: '#1e382b' },
+  deliveredBadgeText: { fontSize: 10, color: colors.green, fontWeight: '600' },
   time: { fontSize: 10, color: colors.muted },
   preview: { fontSize: 12, color: colors.muted, marginTop: 3 },
   previewUnread: { color: colors.ink, fontWeight: '600' },

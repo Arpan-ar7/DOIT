@@ -10,25 +10,49 @@ export type Conversation = {
 
 type ConversationSummary = { lastMessage: MessageRow; unreadCount: number };
 
-// A conversation is listed only while the request is actively in progress —
-// chat opens on accept and closes once completed/cancelled (matches
-// messages RLS, which also stops returning rows past completion).
-function isParticipant(r: DeliveryRequest, userId: string) {
-  const active = r.status === 'accepted' || r.status === 'in_progress';
-  return active && (r.requester.id === userId || r.accepterId === userId);
+export const CHAT_BUFFER_MS = 10 * 60 * 1000; // 10 minutes buffer after delivery
+
+// A conversation is listed while the request is actively in progress or
+// completed within the 10-minute grace period buffer.
+export function isParticipant(r: DeliveryRequest, userId: string, now: number = Date.now()) {
+  const isParty = r.requester.id === userId || r.accepterId === userId;
+  if (!isParty) return false;
+
+  if (r.status === 'accepted' || r.status === 'in_progress') {
+    return true;
+  }
+
+  if (r.status === 'completed') {
+    const completionTimeStr = r.completedAt || r.updatedAt;
+    if (!completionTimeStr) return false;
+    const completionTime = new Date(completionTimeStr).getTime();
+    if (isNaN(completionTime)) return false;
+    return now - completionTime < CHAT_BUFFER_MS;
+  }
+
+  return false;
 }
 
 export function useConversations(requests: DeliveryRequest[], userId: string) {
   const [summaries, setSummaries] = useState<Record<string, ConversationSummary>>({});
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
   const requestsRef = useRef(requests);
   requestsRef.current = requests;
 
-  const myRequests = requests.filter((r) => isParticipant(r, userId));
+  // Periodic ticker so completed requests automatically expire from list after 10 mins
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const myRequests = requests.filter((r) => isParticipant(r, userId, now));
   const myRequestIds = myRequests.map((r) => r.id).join(',');
 
   const refresh = useCallback(async () => {
-    const ids = requestsRef.current.filter((r) => isParticipant(r, userId)).map((r) => r.id);
+    const ids = requestsRef.current.filter((r) => isParticipant(r, userId, Date.now())).map((r) => r.id);
     if (!userId || ids.length === 0) {
       setSummaries({});
       setLoading(false);

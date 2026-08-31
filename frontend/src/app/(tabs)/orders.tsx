@@ -85,9 +85,18 @@ export default function OrdersScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} colors={[colors.green]} />}
       >
-        <View style={styles.top}>
-          <Text style={styles.h2}>Active Orders</Text>
-          <Text style={styles.subtitle}>Your live requests and deliveries</Text>
+        <View style={styles.topRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h2}>Active Orders</Text>
+            <Text style={styles.subtitle}>Your live requests and deliveries</Text>
+          </View>
+          <Pressable
+            style={[styles.helpBtn, isDarkMode && styles.helpBtnDark]}
+            onPress={() => router.push(routes.report({ prefilledType: 'complaint' }))}
+          >
+            <Ionicons name="help-circle-outline" size={16} color={colors.green} />
+            <Text style={[styles.helpBtnText, isDarkMode && styles.helpBtnTextDark]}>Help</Text>
+          </Pressable>
         </View>
 
         {loading && !hasActive && <ActivityIndicator style={{ marginTop: 30 }} color={colors.green} />}
@@ -124,6 +133,21 @@ export default function OrdersScreen() {
           </>
         )}
 
+        {/* Help & Support Banner */}
+        <Pressable
+          style={[styles.helpBanner, isDarkMode && styles.helpBannerDark]}
+          onPress={() => router.push(routes.report({ prefilledType: 'complaint' }))}
+        >
+          <View style={[styles.helpIconCircle, isDarkMode && styles.helpIconCircleDark]}>
+            <Ionicons name="chatbox-ellipses-outline" size={18} color={colors.green} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.helpBannerTitle, isDarkMode && styles.textWhite]}>Need Help or Have a Complaint?</Text>
+            <Text style={[styles.helpBannerSub, isDarkMode && styles.textMuted]}>Tap here to report any order issue or request support</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+        </Pressable>
+
         {/* History nudge */}
         {hasActive && (
           <Pressable style={styles.historyNudge} onPress={() => router.push(routes.orderHistory())}>
@@ -140,8 +164,74 @@ const getStyles = (colors: any) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
   top: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.lg, paddingBottom: spacing.sm },
   h2: { fontSize: 22, fontWeight: '700', color: colors.ink },
   subtitle: { fontSize: 12, color: colors.muted, marginTop: 4 },
+  helpBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#eefcf6',
+    borderWidth: 1,
+    borderColor: '#c3eed9',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  helpBtnDark: {
+    backgroundColor: '#162b21',
+    borderColor: '#2d4b3b',
+  },
+  helpBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.green,
+  },
+  helpBtnTextDark: {
+    color: '#54f0c4',
+  },
+  helpBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: 14,
+    marginTop: 20,
+  },
+  helpBannerDark: {
+    backgroundColor: '#162b21',
+    borderColor: '#2d4b3b',
+  },
+  helpIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#eefcf6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpIconCircleDark: {
+    backgroundColor: '#1e382b',
+  },
+  helpBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  helpBannerSub: {
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  textWhite: {
+    color: '#f8f8f8',
+  },
+  textMuted: {
+    color: '#8a9e9f',
+  },
   sectionHead: { marginTop: 22, marginBottom: 10 },
   sectionBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },

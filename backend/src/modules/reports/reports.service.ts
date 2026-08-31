@@ -32,13 +32,6 @@ export async function createReport(
     if (!isParticipant) {
       throw new AppError(403, 'You are not a participant in this request');
     }
-
-    if (request.status !== 'completed') {
-      throw new AppError(
-        400,
-        'You can only file this type of report after the request has been marked delivered/completed'
-      );
-    }
   }
 
   const { data, error } = await supabaseClient

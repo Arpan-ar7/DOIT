@@ -12,10 +12,12 @@ async function notifySafely(fn: () => Promise<unknown>): Promise<void> {
   }
 }
 
+const CHAT_BUFFER_MS = 10 * 60 * 1000; // 10 minutes buffer after delivery
+
 async function getRequestParticipants(requestId: string) {
   const { data, error } = await supabaseClient
     .from('requests')
-    .select('id, status, requester_id, deliverer_id, item_name')
+    .select('id, status, requester_id, deliverer_id, item_name, completed_at, updated_at')
     .eq('id', requestId)
     .single();
 
@@ -23,7 +25,29 @@ async function getRequestParticipants(requestId: string) {
     throw new AppError(404, 'Request not found');
   }
 
-  return data;
+  return data as {
+    id: string;
+    status: string;
+    requester_id: string;
+    deliverer_id: string | null;
+    item_name: string;
+    completed_at?: string | null;
+    updated_at?: string | null;
+  };
+}
+
+function isChatOpen(request: { status: string; completed_at?: string | null; updated_at?: string | null }): boolean {
+  if (['accepted', 'in_progress'].includes(request.status)) {
+    return true;
+  }
+  if (request.status === 'completed') {
+    const completionTimeStr = request.completed_at || request.updated_at;
+    if (!completionTimeStr) return false;
+    const completedMs = new Date(completionTimeStr).getTime();
+    if (isNaN(completedMs)) return false;
+    return Date.now() - completedMs < CHAT_BUFFER_MS;
+  }
+  return false;
 }
 
 function assertIsParticipant(
@@ -52,7 +76,10 @@ export async function sendMessage(
   const request = await getRequestParticipants(requestId);
   assertIsParticipant(request, senderId);
 
-  if (!['accepted', 'in_progress'].includes(request.status)) {
+  if (!isChatOpen(request)) {
+    if (request.status === 'completed') {
+      throw new AppError(400, 'Chat is closed. The 10-minute window after delivery has expired.');
+    }
     throw new AppError(
       400,
       `Cannot send messages on a request with status "${request.status}"`
@@ -91,15 +118,13 @@ export async function sendMessage(
     const senderName = senderProfile?.full_name?.trim() || 'Someone';
 
     const notificationTitle = isImage
-      ? `${senderName} sent you a photo`
+      ? `📷 Photo for "${request.item_name}"`
       : request.item_name
       ? `${senderName} (${request.item_name})`
       : `New message from ${senderName}`;
 
     const notificationBody = isImage
-      ? request.item_name
-        ? `Regarding "${request.item_name}"`
-        : '📷 Tap to view photo'
+      ? `${senderName} sent a photo for order "${request.item_name}". Tap to view.`
       : content.length > 100
       ? content.slice(0, 100) + '...'
       : content;
@@ -125,7 +150,7 @@ export async function getMessageHistory(
   const request = await getRequestParticipants(requestId);
   assertIsParticipant(request, userId);
 
-  if (request.status === 'completed') {
+  if (request.status === 'completed' && !isChatOpen(request)) {
     throw new AppError(403, 'Chat is no longer available for a completed request');
   }
 

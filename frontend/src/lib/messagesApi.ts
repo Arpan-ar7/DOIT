@@ -11,13 +11,25 @@ export type MessageRow = {
 };
 
 export async function getMessages(requestId: string): Promise<MessageRow[]> {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('request_id', requestId)
-    .order('created_at', { ascending: true });
-  if (error) throw error;
-  return data ?? [];
+  try {
+    const rows = await apiClient.messages.history(requestId);
+    return rows.map((r) => ({
+      id: r.id,
+      request_id: r.request_id,
+      sender_id: r.sender_id,
+      content: r.content,
+      is_read: false,
+      created_at: r.created_at,
+    }));
+  } catch (backendErr) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('request_id', requestId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data ?? [];
+  }
 }
 
 export async function sendMessage(requestId: string, senderId: string, content: string): Promise<MessageRow> {

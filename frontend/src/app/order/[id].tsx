@@ -189,6 +189,28 @@ export default function OrderStatusScreen() {
         {isRequester && request.status === 'completed' && !!request.rating && (
           <Text style={[styles.ratedText, isDarkMode && styles.textMuted]}>You rated this delivery {request.rating} ★</Text>
         )}
+
+        {/* Help / Complaint option */}
+        <Pressable
+          style={[styles.helpCard, isDarkMode && styles.helpCardDark]}
+          onPress={() => router.push(routes.report({
+            requestId: request.id,
+            reportedUserId: isRequester ? request.accepterId : request.requester.id,
+            orderName: request.itemName,
+            prefilledType: 'complaint',
+          }))}
+        >
+          <View style={styles.helpCardLeft}>
+            <View style={[styles.helpIconBox, isDarkMode && styles.helpIconBoxDark]}>
+              <Ionicons name="alert-circle-outline" size={18} color={isDarkMode ? '#ffb38a' : '#c25e00'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.helpCardTitle, isDarkMode && styles.textWhite]}>Need help or have a complaint?</Text>
+              <Text style={[styles.helpCardSub, isDarkMode && styles.textMuted]}>Report an issue with this delivery</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -231,6 +253,48 @@ const styles = StyleSheet.create({
   rateTitle: { fontSize: 13, fontWeight: '700', color: colors.ink, marginBottom: 10 },
   starRow: { flexDirection: 'row', gap: 8 },
   ratedText: { textAlign: 'center', color: colors.muted, fontSize: 12, marginTop: 14 },
+  helpCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: 14,
+    marginTop: 20,
+  },
+  helpCardDark: {
+    backgroundColor: '#1a2221',
+    borderColor: '#2d3b38',
+  },
+  helpCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  helpIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#fff4eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpIconBoxDark: {
+    backgroundColor: '#352012',
+  },
+  helpCardTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  helpCardSub: {
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 2,
+  },
 
   // Dark mode
   safeDark: { backgroundColor: colors.ink },

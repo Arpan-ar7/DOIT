@@ -19,6 +19,7 @@ import { isUsernameFormatValid, isUsernameTaken } from '../utils/username';
 import { useTheme } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 import Avatar from '../components/Avatar';
+import { supabase } from '../lib/supabase';
 
 export default function SettingsScreen() {
   const { user, updateProfile, logout } = useAuth();
@@ -26,17 +27,24 @@ export default function SettingsScreen() {
 
   const [name, setName] = useState(user?.name ?? '');
   const [username, setUsername] = useState(user?.username ?? '');
+  const [hostel, setHostel] = useState(user?.hostel ?? '');
   const [photoUri, setPhotoUri] = useState<string | null>(user?.photoUri ?? null);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [passwordNotice, setPasswordNotice] = useState(false);
+
+  // Password change state
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   const trimmedUsername = username.trim();
   const usernameFormatOk = isUsernameFormatValid(trimmedUsername);
-  const usernameTaken = isUsernameTaken(trimmedUsername, user?.id ?? '');
+  const usernameTaken = isUsernameTaken(trimmedUsername, user?.username ?? '');
 
   async function handlePickPhoto() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -73,6 +81,7 @@ export default function SettingsScreen() {
     const result = await updateProfile({
       name: name.trim(),
       username: trimmedUsername,
+      hostel: hostel.trim(),
       photoUri,
     });
     setSaving(false);
@@ -82,6 +91,32 @@ export default function SettingsScreen() {
     }
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2500);
+  }
+
+  async function handleUpdatePassword() {
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    setPasswordSaving(true);
+    setPasswordError('');
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        setPasswordError(error.message);
+      } else {
+        setPasswordSuccess(true);
+        setNewPassword('');
+        setTimeout(() => {
+          setPasswordSuccess(false);
+          setShowPasswordChange(false);
+        }, 2000);
+      }
+    } catch (e: any) {
+      setPasswordError(e?.message ?? 'Failed to update password.');
+    } finally {
+      setPasswordSaving(false);
+    }
   }
 
   return (
@@ -144,6 +179,15 @@ export default function SettingsScreen() {
               </View>
             )}
 
+            <Text style={[styles.label, isDarkMode && styles.labelDark]}>Hostel / Default Room</Text>
+            <TextInput
+              style={[styles.input, isDarkMode && styles.inputDark]}
+              value={hostel}
+              onChangeText={setHostel}
+              placeholder="e.g. Block B, Room 304"
+              placeholderTextColor={isDarkMode ? '#8a9e9f' : colors.muted}
+            />
+
             {!!saveError && <Text style={styles.errorText}>{saveError}</Text>}
             {saveSuccess && <Text style={styles.successText}>Profile updated.</Text>}
 
@@ -177,13 +221,36 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionTitle, isDarkMode && styles.textWhite]}>Account</Text>
           </View>
           <View style={[styles.card, isDarkMode && styles.cardDark]}>
-            <Pressable style={styles.menuRow} onPress={() => setPasswordNotice(true)}>
+            <Pressable
+              style={styles.menuRow}
+              onPress={() => setShowPasswordChange(!showPasswordChange)}
+            >
               <Ionicons name="key-outline" size={18} color={isDarkMode ? '#54f0c4' : colors.green} />
               <Text style={[styles.menuLabel, isDarkMode && styles.textWhite]}>Change password</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9ba6a0" />
+              <Ionicons name={showPasswordChange ? 'chevron-up' : 'chevron-forward'} size={16} color="#9ba6a0" />
             </Pressable>
-            {passwordNotice && (
-              <Text style={[styles.noticeText, isDarkMode && styles.textMuted]}>Password changes will be available soon.</Text>
+
+            {showPasswordChange && (
+              <View style={styles.passwordBox}>
+                <Text style={[styles.label, isDarkMode && styles.labelDark]}>New password</Text>
+                <TextInput
+                  style={[styles.input, isDarkMode && styles.inputDark]}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry
+                  placeholder="Min 6 characters"
+                  placeholderTextColor={isDarkMode ? '#8a9e9f' : colors.muted}
+                />
+                {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+                {passwordSuccess && <Text style={styles.successText}>Password updated successfully!</Text>}
+                <Pressable
+                  style={[styles.btn, { marginTop: 12 }]}
+                  onPress={handleUpdatePassword}
+                  disabled={passwordSaving}
+                >
+                  <Text style={styles.btnText}>{passwordSaving ? 'Updating...' : 'Update Password'}</Text>
+                </Pressable>
+              </View>
             )}
           </View>
 
@@ -247,6 +314,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.line, marginVertical: 10 },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
   menuLabel: { flex: 1, fontSize: 14, color: colors.ink },
+  passwordBox: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 12 },
   noticeText: { fontSize: 11, color: colors.muted, marginTop: 10, lineHeight: 16 },
   logoutBtn: {
     flexDirection: 'row',

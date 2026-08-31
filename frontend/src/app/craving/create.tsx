@@ -9,17 +9,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { horror, radius, spacing } from '../../constants/theme';
 import { HOSTEL_OPTIONS, CRAVING_LABELS } from '../../constants/mockData';
 import { useCravings } from '../../context/CravingsContext';
+import { useAuth } from '../../context/AuthContext';
 
 // @ts-ignore
 import batImg from '../../assets/horror/bat.jpg';
 
 export default function CreateCravingScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { postCraving } = useCravings();
 
+  const defaultHostelOption = user?.hostel && (HOSTEL_OPTIONS as readonly string[]).includes(user.hostel)
+    ? user.hostel
+    : (user?.hostel ? 'Other' : HOSTEL_OPTIONS[0]);
+
   const [what, setWhat] = useState('');
-  const [hostel, setHostel] = useState<string>(HOSTEL_OPTIONS[0]);
-  const [otherHostel, setOtherHostel] = useState('');
+  const [hostel, setHostel] = useState<string>(defaultHostelOption);
+  const [otherHostel, setOtherHostel] = useState(defaultHostelOption === 'Other' ? (user?.hostel ?? '') : '');
   const [price, setPrice] = useState('');
   const [note, setNote] = useState('');
   const [posting, setPosting] = useState(false);
