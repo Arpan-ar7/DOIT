@@ -14,20 +14,14 @@ import { routes } from '../../constants/routes';
 
 const getStatusColors = (isDark: boolean) => ({
   pending: { bg: isDark ? '#2c3639' : '#f2f4ee', text: isDark ? '#a0b0b4' : '#627168' },
-  expired: { bg: isDark ? '#3a2a2a' : '#f3e9e6', text: isDark ? '#e07a5f' : '#a05a48' },
-  cancelled: { bg: isDark ? '#3d241c' : '#fdf0ee', text: isDark ? '#ff6b6b' : '#c14b30' },
-  completed: { bg: isDark ? '#1a362a' : '#dcf2e8', text: isDark ? '#54f0c4' : '#0e5545' },
-  active: { bg: isDark ? '#1a362a' : '#dcf2e8', text: isDark ? '#54f0c4' : '#166b57' },
+  accepted: { bg: isDark ? '#1a362a' : '#dcf2e8', text: isDark ? '#54f0c4' : '#166b57' },
+  in_progress: { bg: isDark ? '#2a2a1a' : '#fdf4dc', text: isDark ? '#f0c454' : '#8a6a00' },
 });
 
 function getStatusBadge(request: DeliveryRequest) {
-  const isPending = request.status === 'pending';
-  const isExpiredPending = isPending && isExpired(request.expiresAt);
-  if (isExpiredPending) return { key: 'expired', label: 'Expired' };
-  if (request.status === 'cancelled') return { key: 'cancelled', label: STATUS_LABELS.cancelled };
-  if (request.status === 'completed') return { key: 'completed', label: STATUS_LABELS.completed };
-  if (isPending) return { key: 'pending', label: STATUS_LABELS.pending };
-  return { key: 'active', label: STATUS_LABELS[request.status] };
+  if (request.status === 'accepted') return { key: 'accepted', label: 'Accepted' };
+  if (request.status === 'in_progress') return { key: 'in_progress', label: 'In Progress' };
+  return { key: 'pending', label: STATUS_LABELS.pending };
 }
 
 export default function OrdersScreen() {
@@ -40,21 +34,19 @@ export default function OrdersScreen() {
   const styles = React.useMemo(() => getStyles(colors), [colors]);
   const STATUS_COLORS = React.useMemo(() => getStatusColors(isDarkMode), [isDarkMode]);
 
-  // CHANGED — CURRENT_USER.id -> real user id.
-  const acceptedByMe = requests.filter((r) => r.accepterId === user?.id);
-  const generatedByMe = requests.filter((r) => r.requester.id === user?.id);
-  const hasOrders = acceptedByMe.length > 0 || generatedByMe.length > 0;
-
-  function isOver(r: DeliveryRequest) {
-    return r.status === 'cancelled' || r.status === 'completed' || (r.status === 'pending' && isExpired(r.expiresAt));
+  function isActive(r: DeliveryRequest) {
+    if (r.status === 'cancelled' || r.status === 'completed') return false;
+    if (r.status === 'pending' && isExpired(r.expiresAt)) return false;
+    return true;
   }
-  const activeAccepted = acceptedByMe.filter((r) => !isOver(r));
-  const pastAccepted = acceptedByMe.filter((r) => isOver(r));
-  const activeGenerated = generatedByMe.filter((r) => !isOver(r));
-  const pastGenerated = generatedByMe.filter((r) => isOver(r));
+
+  // Active orders only
+  const delivering = requests.filter((r) => r.accepterId === user?.id && isActive(r));
+  const myRequests = requests.filter((r) => r.requester.id === user?.id && isActive(r));
+  const hasActive = delivering.length > 0 || myRequests.length > 0;
 
   function handlePress(request: DeliveryRequest) {
-    if (request.status === 'pending' || request.status === 'cancelled') {
+    if (request.status === 'pending') {
       router.push(routes.requestDetails(request.id));
     } else {
       router.push(routes.orderStatus(request.id));
@@ -73,10 +65,15 @@ export default function OrdersScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.itemName} numberOfLines={1}>{request.itemName}</Text>
           <Text style={styles.itemSub}>{categoryLabel} · ₹{total} total</Text>
-          {badge.key === 'pending' && <Text style={styles.countdown}>{minutesLeftLabel(request.expiresAt)}</Text>}
+          {request.status === 'pending' && (
+            <Text style={styles.countdown}>{minutesLeftLabel(request.expiresAt)}</Text>
+          )}
         </View>
-        <View style={[styles.badge, { backgroundColor: badgeColors.bg }]}>
-          <Text style={[styles.badgeText, { color: badgeColors.text }]}>{badge.label}</Text>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={[styles.badge, { backgroundColor: badgeColors.bg }]}>
+            <Text style={[styles.badgeText, { color: badgeColors.text }]}>{badge.label}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={colors.muted} />
         </View>
       </Pressable>
     );
@@ -89,48 +86,50 @@ export default function OrdersScreen() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} colors={[colors.green]} />}
       >
         <View style={styles.top}>
-          <Text style={styles.h2}>My Orders</Text>
-          <Text style={styles.subtitle}>Requests you've accepted and posted, and their live status.</Text>
+          <Text style={styles.h2}>Active Orders</Text>
+          <Text style={styles.subtitle}>Your live requests and deliveries</Text>
         </View>
 
-        {loading && !hasOrders && <ActivityIndicator style={{ marginTop: 30 }} color={colors.green} />}
+        {loading && !hasActive && <ActivityIndicator style={{ marginTop: 30 }} color={colors.green} />}
 
-        {!loading && !hasOrders && (
+        {!loading && !hasActive && (
           <AnimatedEmptyState
             icon="receipt-outline"
-            title="No orders yet"
-            subtitle="Post a request from Home and it'll show up here."
+            title="No active orders"
+            subtitle="Post a request from Home or accept one from the feed."
           />
         )}
 
-        {activeAccepted.length > 0 && (
+        {delivering.length > 0 && (
           <>
-            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active - Accepted by you</Text></View>
-            {activeAccepted.map(renderOrderRow)}
-          </>
-        )}
-        
-        {activeGenerated.length > 0 && (
-          <>
-            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Active - Posted by you</Text></View>
-            {activeGenerated.map(renderOrderRow)}
-          </>
-        )}
-
-        {pastAccepted.length > 0 && (
-          <>
-            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Past - Accepted by you</Text></View>
-            {pastAccepted.map(renderOrderRow)}
+            <View style={styles.sectionHead}>
+              <View style={styles.sectionBadge}>
+                <Ionicons name="bicycle-outline" size={14} color={colors.green} />
+                <Text style={styles.sectionTitle}>You're delivering</Text>
+              </View>
+            </View>
+            {delivering.map(renderOrderRow)}
           </>
         )}
 
-        
-
-        {pastGenerated.length > 0 && (
+        {myRequests.length > 0 && (
           <>
-            <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Past - Posted by you</Text></View>
-            {pastGenerated.map(renderOrderRow)}
+            <View style={styles.sectionHead}>
+              <View style={styles.sectionBadge}>
+                <Ionicons name="cube-outline" size={14} color={colors.green} />
+                <Text style={styles.sectionTitle}>Your requests</Text>
+              </View>
+            </View>
+            {myRequests.map(renderOrderRow)}
           </>
+        )}
+
+        {/* History nudge */}
+        {hasActive && (
+          <Pressable style={styles.historyNudge} onPress={() => router.push(routes.orderHistory())}>
+            <Text style={styles.historyNudgeText}>View past orders in Profile → Order history</Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.muted} />
+          </Pressable>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -144,8 +143,19 @@ const getStyles = (colors: any) => StyleSheet.create({
   h2: { fontSize: 22, fontWeight: '700', color: colors.ink },
   subtitle: { fontSize: 12, color: colors.muted, marginTop: 4 },
   sectionHead: { marginTop: 22, marginBottom: 10 },
+  sectionBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 13, marginBottom: 9 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    padding: 13,
+    marginBottom: 9,
+  },
   emojiBox: { width: 44, height: 44, borderRadius: 13, backgroundColor: colors.yellow, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 20 },
   itemName: { fontSize: 14, fontWeight: '700', color: colors.ink },
@@ -153,7 +163,13 @@ const getStyles = (colors: any) => StyleSheet.create({
   countdown: { fontSize: 11, color: colors.orange, fontWeight: '700', marginTop: 3 },
   badge: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8 },
   badgeText: { fontSize: 11, fontWeight: '700' },
-  empty: { alignItems: 'center', paddingTop: 60, gap: 8, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 14, fontWeight: '700', color: colors.ink, marginTop: 4 },
-  emptySub: { fontSize: 12, color: colors.muted, textAlign: 'center', lineHeight: 18 },
+  historyNudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 18,
+    paddingVertical: 10,
+  },
+  historyNudgeText: { fontSize: 12, color: colors.muted },
 });

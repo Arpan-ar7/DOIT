@@ -69,8 +69,10 @@ function mapApiRequest(
     notes: row.notes ?? '',
     deliveryLocation: row.dropoff_location,
     expiresAt: row.expires_at,
-    // 'expired' isn't actually written by anything yet (no scheduled job
-    // exists on the backend) — treat it as pending, let isExpired() handle it.
+    createdAt: row.created_at,
+    acceptedAt: row.accepted_at ?? null,
+    completedAt: row.completed_at ?? null,
+    updatedAt: row.updated_at,
     isLateNightCraving: row.is_late_night_craving || false,
     status: row.status === 'expired' ? 'pending' : row.status,
     rating: ratingsByRequestId[row.id],

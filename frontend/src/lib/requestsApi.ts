@@ -19,6 +19,8 @@ export type ApiRequestRow = {
   status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'expired';
   is_late_night_craving?: boolean;
   created_at: string;
+  accepted_at: string | null;
+  completed_at: string | null;
   updated_at: string;
 };
 

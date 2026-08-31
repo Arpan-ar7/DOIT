@@ -6,6 +6,7 @@ import { colors, radius, spacing } from '../../constants/theme';
 import { useRequests } from '../../context/RequestsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import ScreenHeader from '../../components/ScreenHeader';
 
 export default function EarningsScreen() {
   const { requests } = useRequests();
@@ -28,15 +29,13 @@ export default function EarningsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, isDarkMode && styles.safeDark]} edges={['top']}>
+      <ScreenHeader title="Earnings & history" />
       <FlatList
         data={completedByMe}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <>
-            <View style={styles.top}>
-              <Text style={[styles.h2, isDarkMode && styles.h2Dark]}>Earnings & history</Text>
-            </View>
             <View style={[styles.totalCard, isDarkMode && styles.totalCardDark]}>
               <Text style={styles.totalLabel}>Total earnings</Text>
               <Text style={styles.totalValue}>₹{totalEarned}</Text>

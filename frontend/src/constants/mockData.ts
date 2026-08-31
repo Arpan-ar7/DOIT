@@ -63,6 +63,10 @@ export type DeliveryRequest = {
   notes: string;
   deliveryLocation: string;
   expiresAt: string;
+  createdAt?: string | null;   // when the request was posted (always set on real DB rows)
+  acceptedAt?: string | null;  // when the delivery person accepted it
+  completedAt?: string | null; // when it was marked delivered
+  updatedAt?: string | null;
   status: RequestStatus;
   rating?: number;
   isLateNightCraving?: boolean;
@@ -76,7 +80,7 @@ export type DeliveryRequest = {
     photoUri?: string | null;
   };
   accepterId?: string;
-  accepter?: Accepter; // NEW — populated once accepted; undefined until then
+  accepter?: Accepter;
 };
 
 export function isExpired(expiresAt: string) {
@@ -87,7 +91,7 @@ export const CURRENT_USER = {
   id: 'u1',
   name: 'Aarav Sharma',
   initials: 'AS',
-  college: 'Northview College',
+  college: 'Marwadi University',
   rating: 0,
   deliveries: 0,
   earned: 0,

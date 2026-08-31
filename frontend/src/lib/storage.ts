@@ -5,6 +5,10 @@ const BUCKET = 'ProfilePic';
 /**
  * Upload a local image to Supabase Storage and return the public URL.
  *
+ * Uses ArrayBuffer (not Blob) because React Native's Blob implementation
+ * is incomplete — fetch → blob works on iOS but can silently produce an
+ * empty body on Android content:// URIs. ArrayBuffer is reliable on both.
+ *
  * The file is stored as `{userId}.jpg`, so each user gets exactly one
  * profile picture that is overwritten on every update.
  */
@@ -12,20 +16,23 @@ export async function uploadProfilePicture(
   userId: string,
   localUri: string,
 ): Promise<string> {
-  // React Native's fetch can read local file:// URIs and return a blob.
   const response = await fetch(localUri);
-  const blob = await response.blob();
+  if (!response.ok) {
+    throw new Error(`Could not read image from device (status ${response.status}).`);
+  }
 
+  const arrayBuffer = await response.arrayBuffer();
   const filePath = `${userId}.jpg`;
 
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(filePath, blob, {
+    .upload(filePath, arrayBuffer, {
       contentType: 'image/jpeg',
       upsert: true, // overwrite previous avatar
     });
 
   if (error) {
+    console.error('[uploadProfilePicture] Storage error:', error);
     throw new Error(`Profile picture upload failed: ${error.message}`);
   }
 

@@ -13,11 +13,21 @@ import ScreenHeader from '../../components/ScreenHeader';
 import Avatar from '../../components/Avatar';
 
 const STEPS: { key: RequestStatus; label: string; icon: keyof typeof Ionicons.glyphMap; doneCopy: string; pendingCopy: string }[] = [
-  { key: 'pending', label: 'Pending', icon: 'time-outline', doneCopy: 'Request was posted', pendingCopy: 'Waiting to be posted' },
-  { key: 'accepted', label: 'Accepted', icon: 'checkmark', doneCopy: 'Someone accepted this request', pendingCopy: 'Waiting for someone to accept' },
-  { key: 'in_progress', label: 'In Progress', icon: 'bicycle-outline', doneCopy: 'Delivery is in progress', pendingCopy: 'Delivery partner is getting your item' },
-  { key: 'completed', label: 'Completed', icon: 'sparkles-outline', doneCopy: 'Delivered and completed', pendingCopy: 'Payment and rating confirmed' },
+  { key: 'pending',     label: 'Pending',     icon: 'time-outline',     doneCopy: 'Request was posted',         pendingCopy: 'Waiting to be posted' },
+  { key: 'accepted',   label: 'Accepted',    icon: 'checkmark',         doneCopy: 'Someone accepted this request', pendingCopy: 'Waiting for someone to accept' },
+  { key: 'in_progress', label: 'In Progress', icon: 'bicycle-outline',  doneCopy: 'Delivery is in progress',    pendingCopy: 'Delivery partner is getting your item' },
+  { key: 'completed',  label: 'Completed',   icon: 'sparkles-outline',  doneCopy: 'Delivered and completed',    pendingCopy: 'Payment and rating confirmed' },
 ];
+
+function fmtTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDateTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function OrderStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -111,6 +121,14 @@ export default function OrderStatusScreen() {
           {STEPS.map((step, index) => {
             const isDone = index < currentIndex;
             const isCurrent = index === currentIndex;
+
+            // Pick the real timestamp for each step
+            // For older orders before acceptedAt/completedAt columns existed, fallback to updatedAt
+            const stepTs =
+              step.key === 'pending'   ? fmtDateTime(request.createdAt)  :
+              step.key === 'accepted'  ? fmtTime(request.acceptedAt || request.updatedAt)     :
+              step.key === 'completed' ? fmtTime(request.completedAt || request.updatedAt)    : null;
+
             return (
               <View key={step.key} style={[styles.stepRow, index === STEPS.length - 1 && { paddingBottom: 0 }]}>
                 {index !== STEPS.length - 1 && <View style={[styles.connector, isDarkMode && styles.connectorDark, isDone && styles.connectorDone]} />}
@@ -119,7 +137,16 @@ export default function OrderStatusScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.stepLabel, isDarkMode && styles.textWhite]}>{step.label}</Text>
-                  <Text style={[styles.stepCopy, isDarkMode && styles.textMuted, isCurrent && [styles.stepCopyCurrent, isDarkMode && styles.stepCopyCurrentDark]]}>{isDone || isCurrent ? step.doneCopy : step.pendingCopy}</Text>
+                  <Text style={[styles.stepCopy, isDarkMode && styles.textMuted, isCurrent && [styles.stepCopyCurrent, isDarkMode && styles.stepCopyCurrentDark]]}>
+                    {isDone || isCurrent
+                      ? (step.key === 'accepted' && request.accepter?.name
+                          ? `Accepted by ${request.accepter.name.split(' ')[0]}`
+                          : step.doneCopy)
+                      : step.pendingCopy}
+                  </Text>
+                  {(isDone || isCurrent) && stepTs && (
+                    <Text style={[styles.stepTime, isDarkMode && styles.stepTimeDark]}>🕐 {stepTs}</Text>
+                  )}
                 </View>
               </View>
             );
@@ -192,6 +219,8 @@ const styles = StyleSheet.create({
   stepLabel: { fontSize: 13, fontWeight: '700', color: colors.ink, marginBottom: 3 },
   stepCopy: { fontSize: 11, color: colors.muted },
   stepCopyCurrent: { color: colors.green, fontWeight: '700' },
+  stepTime: { fontSize: 11, color: colors.green, marginTop: 4, fontWeight: '600', opacity: 0.75 },
+  stepTimeDark: { color: '#54f0c4' },
   errorText: { color: '#c14b30', fontSize: 12, fontWeight: '600', marginTop: 14, textAlign: 'center' },
   btn: { backgroundColor: colors.orange, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
   btnText: { color: '#fff', fontSize: 14, fontWeight: '800' },

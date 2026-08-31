@@ -116,7 +116,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => sub.subscription.unsubscribe();
+    // When a rating is submitted by any requester, the backend updates
+    // profiles.average_rating and profiles.total_ratings. Listen for that
+    // change and re-load our profile row so the UI reflects new values.
+    const ratingsChannel = supabase
+      .channel('auth:profile_ratings_refresh')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        async (payload) => {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const uid = sessionData.session?.user.id;
+          if (uid && (payload.new as any).id === uid) {
+            // Only refresh the rating-related fields to avoid a full reload
+            setUser((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    rating: (payload.new as any).average_rating ?? prev.rating,
+                    totalRatings: (payload.new as any).total_ratings ?? prev.totalRatings,
+                  }
+                : prev
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      sub.subscription.unsubscribe();
+      supabase.removeChannel(ratingsChannel);
+    };
   }, []);
 
   async function signup(name: string, email: string, grNo: string, phone: string, password: string) {
@@ -247,14 +277,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Upload profile picture to Supabase Storage if it's a local file.
+    console.log('[updateProfile] photoUri received:', updates.photoUri);
     if (updates.photoUri !== undefined && updates.photoUri !== null) {
       const isLocalFile = !updates.photoUri.startsWith('http');
+      console.log('[updateProfile] isLocalFile:', isLocalFile);
       if (isLocalFile) {
         try {
           const publicUrl = await uploadProfilePicture(user.id, updates.photoUri);
+          console.log('[updateProfile] Uploaded. publicUrl:', publicUrl);
           updates = { ...updates, photoUri: publicUrl };
           dbUpdates.profile_picture = publicUrl;
         } catch (e: any) {
+          console.error('[updateProfile] Upload failed:', e);
           return { success: false, error: e.message || 'Failed to upload profile picture.' };
         }
       } else {
@@ -264,9 +298,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       dbUpdates.profile_picture = null;
     }
 
+    console.log('[updateProfile] dbUpdates:', JSON.stringify(dbUpdates));
     if (Object.keys(dbUpdates).length > 0) {
       const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', user.id);
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        console.error('[updateProfile] DB update error:', error);
+        return { success: false, error: error.message };
+      }
+      console.log('[updateProfile] DB write success ✅');
+    } else {
+      console.log('[updateProfile] No DB changes to write.');
     }
 
     setUser({ ...user, ...updates, username: nextUsername });

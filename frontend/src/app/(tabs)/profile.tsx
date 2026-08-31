@@ -8,22 +8,38 @@ import { CURRENT_USER } from '../../constants/mockData';
 import { routes } from '../../constants/routes';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useRequests } from '../../context/RequestsContext';
 import Avatar from '../../components/Avatar';
 
 const MENU_ITEMS: { icon: keyof typeof Ionicons.glyphMap; label: string; route?: string }[] = [
+  { icon: 'time-outline', label: 'Order history', route: routes.orderHistory() },
   { icon: 'wallet-outline', label: 'My earnings & history', route: routes.earnings() },
   { icon: 'settings-outline', label: 'Settings', route: routes.settings() },
+  { icon: 'flag-outline', label: 'Report a problem', route: routes.report() },
 ];
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { isDarkMode } = useTheme();
+  const { requests } = useRequests();
   const colors = isDarkMode ? darkThemeColors : lightColors;
   const styles = React.useMemo(() => getStyles(colors, isDarkMode), [colors, isDarkMode]);
 
+  // ── Live stats from real Supabase data ─────────────────────────────
+  // Deliveries = requests this user successfully completed as the deliverer
+  const completedDeliveries = requests.filter(
+    (r) => r.accepterId === user?.id && r.status === 'completed'
+  );
+  const deliveryCount = completedDeliveries.length;
+  const totalEarned = completedDeliveries.reduce((sum, r) => sum + r.deliveryFee, 0);
+
+  // Rating comes from profiles.average_rating via AuthContext (updated by
+  // the backend whenever a rating is submitted — always in sync with DB)
+  const rating = user?.rating ?? 0;
+
   const displayName = user?.name || CURRENT_USER.name;
-  const initials = displayName.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  const initials = displayName.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -40,15 +56,15 @@ export default function ProfileScreen() {
 
           <View style={styles.stats}>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{(user?.rating ?? 0) > 0 ? `${user!.rating.toFixed(1)} ★` : '– ★'}</Text>
+              <Text style={styles.statValue}>{rating > 0 ? `${rating.toFixed(1)} ★` : '– ★'}</Text>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{user?.totalRatings ?? 0}</Text>
+              <Text style={styles.statValue}>{deliveryCount}</Text>
               <Text style={styles.statLabel}>Deliveries</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>₹0</Text>
+              <Text style={styles.statValue}>₹{totalEarned}</Text>
               <Text style={styles.statLabel}>Earned</Text>
             </View>
           </View>
