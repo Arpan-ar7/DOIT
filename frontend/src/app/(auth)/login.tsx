@@ -85,6 +85,10 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
+            <Pressable onPress={() => router.push('/forgot-password' as any)} style={styles.forgotBtn}>
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
+
             {!!error && <Text style={styles.errorText}>{error}</Text>}
 
             <Pressable style={styles.btn} onPress={handleLogin} disabled={loading}>
@@ -125,6 +129,8 @@ const styles = StyleSheet.create({
   passwordInput: { flex: 1, padding: 12, fontSize: 14, color: colors.ink },
   eyeBtn: { paddingHorizontal: 12 },
   errorText: { color: '#c14b30', fontSize: 12, fontWeight: '600', marginTop: 12 },
+  forgotBtn: { alignSelf: 'flex-end', marginTop: 10 },
+  forgotText: { color: colors.green, fontSize: 12, fontWeight: '600' },
   btn: { backgroundColor: colors.green, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 20 },
   btnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 22, marginBottom: 20 },

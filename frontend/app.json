@@ -43,7 +43,8 @@
           "photosPermission": "The app accesses your photos to let you share images in chat.",
           "cameraPermission": "The app accesses your camera to let you take and send photos in chat."
         }
-      ]
+      ],
+      "./plugins/withReleaseSigning"
     ],
     "experiments": {
       "typedRoutes": true,

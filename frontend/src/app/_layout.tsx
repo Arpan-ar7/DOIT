@@ -8,6 +8,7 @@ import { RequestsProvider } from '../context/RequestsContext';
 import { CravingsProvider } from '../context/CravingsContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import { supabase } from '../lib/supabase';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -45,6 +46,17 @@ function AuthGate({ children }: { children: ReactNode }) {
     });
 
     return () => sub.remove();
+  }, [router]);
+
+  // Deep link handler: when user taps the password-reset link from email,
+  // Supabase fires PASSWORD_RECOVERY. Navigate to the reset screen.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        router.replace('/reset-password' as any);
+      }
+    });
+    return () => sub.subscription.unsubscribe();
   }, [router]);
 
   if (isLoading) {
