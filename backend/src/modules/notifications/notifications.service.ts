@@ -155,3 +155,128 @@ export async function getMyNotifications(userId: string): Promise<NotificationRe
 
   return data as NotificationRecord[];
 }
+
+export interface BroadcastNewRequestInput {
+  requesterId: string;
+  requestId: string;
+  itemName: string;
+  deliveryFee: number;
+  dropoffLocation?: string | undefined;
+  collegeId?: string | undefined;
+}
+
+export async function broadcastNewRequestNotification(
+  input: BroadcastNewRequestInput
+): Promise<void> {
+  const { requesterId, requestId, itemName, deliveryFee, dropoffLocation, collegeId } = input;
+
+  try {
+    // 1. Fetch active device tokens from users other than the requester
+    const { data: tokens, error: tokensError } = await supabaseClient
+      .from('device_tokens')
+      .select('fcm_token, user_id')
+      .eq('is_active', true)
+      .neq('user_id', requesterId);
+
+    if (tokensError) {
+      logger.error({ err: tokensError }, 'Failed to fetch device tokens for broadcast');
+      return;
+    }
+
+    if (!tokens || tokens.length === 0) {
+      logger.info('No active device tokens found for broadcast');
+      return;
+    }
+
+    // Filter by college if available
+    let eligibleTokens = tokens;
+    if (collegeId) {
+      const { data: collegeProfiles } = await supabaseClient
+        .from('profiles')
+        .select('id')
+        .eq('college_id', collegeId)
+        .neq('id', requesterId);
+
+      if (collegeProfiles && collegeProfiles.length > 0) {
+        const allowedUserIds = new Set(collegeProfiles.map((p) => p.id));
+        const filtered = tokens.filter((t) => allowedUserIds.has(t.user_id));
+        if (filtered.length > 0) {
+          eligibleTokens = filtered;
+        }
+      }
+    }
+
+    const title = `📦 New Delivery Request! Earn ₹${deliveryFee}`;
+    const body = dropoffLocation
+      ? `Someone requested ${itemName} to ${dropoffLocation}. Can you bring it and earn ₹${deliveryFee}?`
+      : `Someone requested ${itemName}. Can you bring it and earn ₹${deliveryFee}?`;
+
+    // 2. Insert notifications in Supabase for in-app notification list (batch insert using valid 'system' enum)
+    const recipientUserIds = Array.from(new Set(eligibleTokens.map((t) => t.user_id)));
+    if (recipientUserIds.length > 0) {
+      const notificationsToInsert = recipientUserIds.map((userId) => ({
+        user_id: userId,
+        type: 'system' as const,
+        title,
+        body,
+        related_request_id: requestId,
+      }));
+
+      const { error: insertError } = await supabaseClient
+        .from('notifications')
+        .insert(notificationsToInsert);
+
+      if (insertError) {
+        logger.warn({ err: insertError }, 'Failed to log broadcast notifications in DB (continuing with push)');
+      }
+    }
+
+    // 3. Send FCM multicast push
+    const fcmTokens = Array.from(new Set(eligibleTokens.map((t) => t.fcm_token as string)));
+    if (fcmTokens.length === 0) return;
+
+    const messaging = getMessagingClient();
+    const response = await messaging.sendEachForMulticast({
+      tokens: fcmTokens,
+      notification: { title, body },
+      data: {
+        request_id: requestId,
+        type: 'new_request',
+        delivery_fee: String(deliveryFee),
+      },
+    });
+
+    // 4. Prune dead tokens
+    const deadTokens: string[] = [];
+    response.responses.forEach((res, i) => {
+      if (!res.success) {
+        const errCode = res.error?.code;
+        if (
+          errCode === 'messaging/registration-token-not-registered' ||
+          errCode === 'messaging/invalid-registration-token'
+        ) {
+          deadTokens.push(fcmTokens[i] as string);
+        }
+      }
+    });
+
+    if (deadTokens.length > 0) {
+      await supabaseClient
+        .from('device_tokens')
+        .update({ is_active: false })
+        .in('fcm_token', deadTokens);
+    }
+
+    logger.info(
+      {
+        requestId,
+        recipientsCount: fcmTokens.length,
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+      },
+      'Broadcast push notifications sent for new request'
+    );
+  } catch (err) {
+    logger.error({ err, requestId }, 'Unexpected failure in broadcastNewRequestNotification');
+  }
+}

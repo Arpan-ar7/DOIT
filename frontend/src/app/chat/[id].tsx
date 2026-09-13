@@ -117,15 +117,34 @@ export default function ChatScreen() {
       const unsubscribe = subscribeToMessages(request.id, (msg) => {
         setMessages((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
+
           // If this is our own message and we have an optimistic pending bubble, replace it
           const pendingIdx = prev.findIndex(
-            (m) => m.id.startsWith('pending-') && m.sender_id === msg.sender_id && (m.content === msg.content || m.id.startsWith('pending-img-'))
+            (m) =>
+              m.id.startsWith('pending-') &&
+              (m.sender_id === msg.sender_id || !m.sender_id || m.sender_id === user.id) &&
+              (m.content.trim() === msg.content.trim() ||
+                m.id.startsWith('pending-img-') ||
+                isImageUrl(msg.content))
           );
           if (pendingIdx !== -1) {
             const next = [...prev];
             next[pendingIdx] = msg;
             return next;
           }
+
+          // If no content match, but there is any pending message from this user, replace oldest
+          const anyPendingIdx = prev.findIndex(
+            (m) =>
+              m.id.startsWith('pending-') &&
+              (m.sender_id === msg.sender_id || !m.sender_id || m.sender_id === user.id)
+          );
+          if (anyPendingIdx !== -1) {
+            const next = [...prev];
+            next[anyPendingIdx] = msg;
+            return next;
+          }
+
           return [...prev, msg];
         });
         if (msg.sender_id !== user.id) {
@@ -166,7 +185,24 @@ export default function ChatScreen() {
         if (alreadyExists) {
           return prev.filter((m) => m.id !== optimistic.id);
         }
-        return prev.map((m) => (m.id === optimistic.id ? saved : m));
+        let replaced = false;
+        const next = prev.map((m) => {
+          if (m.id === optimistic.id) {
+            replaced = true;
+            return saved;
+          }
+          return m;
+        });
+        if (replaced) return next;
+
+        const pendingIdx = next.findIndex(
+          (m) => m.id.startsWith('pending-') && m.content.trim() === content.trim()
+        );
+        if (pendingIdx !== -1) {
+          next[pendingIdx] = saved;
+          return next;
+        }
+        return next.some((m) => m.id === saved.id) ? next : [...next, saved];
       });
     } catch (e) {
       // Send failed (offline / RLS) — drop the optimistic bubble and give
@@ -203,7 +239,22 @@ export default function ChatScreen() {
         if (alreadyExists) {
           return prev.filter((m) => m.id !== tempId);
         }
-        return prev.map((m) => (m.id === tempId ? saved : m));
+        let replaced = false;
+        const next = prev.map((m) => {
+          if (m.id === tempId) {
+            replaced = true;
+            return saved;
+          }
+          return m;
+        });
+        if (replaced) return next;
+
+        const pendingIdx = next.findIndex((m) => m.id.startsWith('pending-img-'));
+        if (pendingIdx !== -1) {
+          next[pendingIdx] = saved;
+          return next;
+        }
+        return next.some((m) => m.id === saved.id) ? next : [...next, saved];
       });
     } catch (err: any) {
       console.error('Failed to send image:', err);
@@ -229,8 +280,9 @@ export default function ChatScreen() {
       quality: 0.8,
     });
 
-    if (result.canceled || !result.assets[0]?.uri) return;
-    await processSelectedImage(result.assets[0].uri);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      await processSelectedImage(result.assets[0].uri);
+    }
   }
 
   async function handleChooseFromLibrary() {
@@ -238,7 +290,7 @@ export default function ChatScreen() {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission required', 'Please allow photo gallery access to send images.');
+      Alert.alert('Permission required', 'Please allow photo library access in your device settings.');
       return;
     }
 
@@ -248,8 +300,9 @@ export default function ChatScreen() {
       quality: 0.8,
     });
 
-    if (result.canceled || !result.assets[0]?.uri) return;
-    await processSelectedImage(result.assets[0].uri);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      await processSelectedImage(result.assets[0].uri);
+    }
   }
 
   function handlePickImage() {
@@ -276,10 +329,37 @@ export default function ChatScreen() {
   }
 
   const uniqueMessages = React.useMemo(() => {
-    const seen = new Set<string>();
+    const emittedIds = new Set<string>();
+    const confirmedSignatures = new Set<string>();
+
+    // Pass 1: record all confirmed (real DB) messages
+    messages.forEach((m) => {
+      if (!m.id.startsWith('pending-')) {
+        confirmedSignatures.add(`${m.sender_id}:${m.content.trim()}`);
+      }
+    });
+
+    // Pass 2: filter out duplicates and pending bubbles that have a confirmed counterpart
     return messages.filter((m) => {
-      if (seen.has(m.id)) return false;
-      seen.add(m.id);
+      if (emittedIds.has(m.id)) return false;
+
+      if (m.id.startsWith('pending-')) {
+        const sig = `${m.sender_id}:${m.content.trim()}`;
+        if (confirmedSignatures.has(sig)) {
+          return false;
+        }
+        if (m.id.startsWith('pending-img-')) {
+          const hasConfirmedImg = messages.some(
+            (other) =>
+              !other.id.startsWith('pending-') &&
+              other.sender_id === m.sender_id &&
+              isImageUrl(other.content)
+          );
+          if (hasConfirmedImg) return false;
+        }
+      }
+
+      emittedIds.add(m.id);
       return true;
     });
   }, [messages]);

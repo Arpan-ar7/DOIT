@@ -1,7 +1,7 @@
 import { supabaseClient } from '../../config/supabaseClient.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { logger } from '../../utils/logger.js';
-import { sendPush } from '../notifications/notifications.service.js';
+import { sendPush, broadcastNewRequestNotification } from '../notifications/notifications.service.js';
 import type { CreateRequestInput, RequestRecord, RequestStatus } from './requests.type.js';
 
 /**
@@ -73,7 +73,26 @@ export async function createRequest(
     throw new AppError(500, 'Failed to create request');
   }
 
-  return data as RequestRecord;
+  const createdRequest = data as RequestRecord;
+
+  // Broadcast push notification to campus peers safely in background
+  notifySafely(async () => {
+    let collegeId: string | undefined;
+    try {
+      collegeId = await getUserCollegeId(requesterId);
+    } catch (_) {}
+
+    await broadcastNewRequestNotification({
+      requesterId,
+      requestId: createdRequest.id,
+      itemName: createdRequest.item_name,
+      deliveryFee: createdRequest.delivery_fee,
+      dropoffLocation: createdRequest.dropoff_location,
+      collegeId,
+    });
+  });
+
+  return createdRequest;
 }
 
 export async function getFeedForUser(userId: string): Promise<RequestRecord[]> {

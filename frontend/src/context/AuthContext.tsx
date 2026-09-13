@@ -73,37 +73,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function loadProfile(userId: string) {
-    const [profileRes, authUserRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).single(),
-      supabase.auth.getUser(),
-    ]);
-    const profile = profileRes.data;
-    const authUser = authUserRes.data?.user;
-    if (!profile && !authUser) {
-      // Profile row missing/unreadable — don't leave the app half-logged-in.
-      await supabase.auth.signOut();
-      setUser(null);
+    try {
+      const [profileRes, authUserRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        supabase.auth.getUser(),
+      ]);
+      const profile = profileRes.data;
+      const authUser = authUserRes.data?.user;
+      if (!profile && !authUser) {
+        // Profile row missing/unreadable — don't leave the app half-logged-in.
+        await supabase.auth.signOut();
+        setUser(null);
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+      setUserFromProfile(profile || {}, authUser);
+      setIsAuthenticated(true);
+      setIsLoading(false);
+
+      // Register Push Token after successful login / load in background
+      registerForPushNotificationsAsync().then((token) => {
+        if (token) {
+          const platform = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
+          apiClient.notifications.registerToken(token, platform).then(() => {
+            console.log('Token saved to DB successfully');
+          }).catch((err) => {
+            console.warn('Failed to register push token with backend:', err);
+          });
+        }
+      }).catch((err) => {
+        console.warn('Could not get device push token:', err);
+      });
+    } catch (err) {
+      console.error('Failed to load profile:', err);
       setIsAuthenticated(false);
       setIsLoading(false);
-      return;
     }
-    setUserFromProfile(profile || {}, authUser);
-    setIsAuthenticated(true);
-    setIsLoading(false);
-
-    // Register Push Token after successful login / load in background
-    registerForPushNotificationsAsync().then((token) => {
-      if (token) {
-        const platform = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
-        apiClient.notifications.registerToken(token, platform).then(() => {
-          console.log('Token saved to DB successfully');
-        }).catch((err) => {
-          console.warn('Failed to register push token with backend:', err);
-        });
-      }
-    }).catch((err) => {
-      console.warn('Could not get device push token:', err);
-    });
   }
 
   // On app start: check if a session already exists (persisted via
@@ -113,6 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) loadProfile(data.session.user.id);
       else setIsLoading(false);
+    }).catch((err) => {
+      console.error('Failed to get session:', err);
+      setIsLoading(false);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -120,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else {
         setUser(null);
         setIsAuthenticated(false);
+        setIsLoading(false);
       }
     });
 
@@ -179,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: trimmedEmail,
       phone_number: phone.trim(),
       gr_number: Number(trimmedGrNo),
+      college_id: 'e407380e-1fa8-47bd-bc64-b5d0c4712c91',
     });
 
     if (profileError) {
