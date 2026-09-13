@@ -49,7 +49,7 @@ export function CravingsProvider({ children }: { children: ReactNode }) {
           deliverer:profiles!deliverer_id(id, full_name)
         `)
         .eq('is_late_night_craving', true)
-        .neq('status', 'cancelled')
+        .or(`status.in.(accepted,in_progress),and(status.eq.pending,expires_at.gte.${new Date().toISOString()})`)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -135,7 +135,16 @@ export function CravingsProvider({ children }: { children: ReactNode }) {
       status: 'pending',
       is_late_night_craving: true,
       requester_id: user.id,
-      expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+      // Expire at next 8:00 AM IST so the cron sweep catches it
+      expires_at: (() => {
+        const now = new Date();
+        // Build "today 8 AM IST" → UTC 02:30
+        const todayMorning = new Date(now);
+        todayMorning.setUTCHours(2, 30, 0, 0); // 8:00 AM IST = 02:30 UTC
+        // If it's already past 8 AM IST today, target tomorrow 8 AM
+        const target = now < todayMorning ? todayMorning : new Date(todayMorning.getTime() + 24 * 60 * 60 * 1000);
+        return target.toISOString();
+      })(),
     };
 
     const { error } = await supabase.from('requests').insert(newRequest);

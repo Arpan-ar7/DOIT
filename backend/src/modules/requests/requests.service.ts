@@ -285,3 +285,56 @@ export async function getUserRequests(
 
   return data as RequestRecord[];
 }
+
+/**
+ * Auto-expire any pending request whose `expires_at` has passed.
+ * Returns the number of rows that were expired.
+ */
+export async function expireStaleRequests(): Promise<number> {
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabaseClient
+    .from('requests')
+    .update({
+      status: 'expired',
+      cancellation_reason: 'Auto-expired',
+      updated_at: now,
+    })
+    .eq('status', 'pending')
+    .lt('expires_at', now)
+    .select('id');
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to expire stale requests');
+    return 0;
+  }
+
+  return data?.length ?? 0;
+}
+
+/**
+ * 8 AM sweep: cancel ALL remaining pending late-night cravings,
+ * regardless of their `expires_at` value.
+ * Returns the number of rows that were cancelled.
+ */
+export async function cancelAllPendingCravings(): Promise<number> {
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabaseClient
+    .from('requests')
+    .update({
+      status: 'cancelled',
+      cancellation_reason: 'Morning auto-cancel (8 AM cutoff)',
+      updated_at: now,
+    })
+    .eq('status', 'pending')
+    .eq('is_late_night_craving', true)
+    .select('id');
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to cancel pending cravings');
+    return 0;
+  }
+
+  return data?.length ?? 0;
+}
