@@ -99,9 +99,21 @@ export default function OrderStatusScreen() {
           <View style={styles.emojiBox}><Text style={styles.emoji}>{request.emoji}</Text></View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.itemName, isDarkMode && styles.textWhite]}>{request.itemName}</Text>
-            <Text style={[styles.subtext, isDarkMode && styles.textMuted]}>For {request.requester.name} · Total ₹{total}</Text>
+            <Text style={[styles.subtext, isDarkMode && styles.textMuted]}>For {request.requester.name}</Text>
+            <Text style={[styles.subtext, isDarkMode && styles.textMuted]}>Item ₹{request.itemBudget} · Delivery ₹{request.deliveryFee} · Total ₹{total}</Text>
           </View>
           <View style={[styles.activeTag, isDarkMode && styles.activeTagDark]}><Text style={[styles.activeTagText, isDarkMode && styles.activeTagTextDark]}>{request.status === 'completed' ? 'Done' : 'Active'}</Text></View>
+        </View>
+
+        {/* Delivery location */}
+        <View style={[styles.locationCard, isDarkMode && styles.cardDark]}>
+          <View style={[styles.locationIconBox, isDarkMode && styles.locationIconBoxDark]}>
+            <Ionicons name="location-outline" size={18} color={isDarkMode ? '#54f0c4' : colors.green} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.locationLabel, isDarkMode && styles.textMuted]}>Delivery location</Text>
+            <Text style={[styles.locationText, isDarkMode && styles.textWhite]}>{request.deliveryLocation}</Text>
+          </View>
         </View>
 
         {/* Delivery partner reveal — phone-sharing block removed entirely
@@ -295,6 +307,12 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 2,
   },
+
+  locationCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 14, marginTop: 12 },
+  locationIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
+  locationIconBoxDark: { backgroundColor: '#1e382b' },
+  locationLabel: { fontSize: 11, color: colors.muted, marginBottom: 2 },
+  locationText: { fontSize: 13, fontWeight: '700', color: colors.ink },
 
   // Dark mode
   safeDark: { backgroundColor: colors.ink },
